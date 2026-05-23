@@ -1,0 +1,224 @@
+@import "tailwindcss";
+
+@theme {
+  --font-family-pixel: 'Press Start 2P', monospace;
+  --font-family-sans: 'Inter', system-ui, sans-serif;
+
+  --color-cosmic-950: #02040a;
+  --color-cosmic-900: #0b1120;
+  --color-cosmic-800: #111827;
+  --color-cosmic-700: #1e293b;
+  --color-cosmic-600: #334155;
+  --color-cosmic-500: #475569;
+
+  --color-cyan-glow: #22d3ee;
+  --color-cyan-dim: #0891b2;
+  --color-cyan-pale: #a5f3fc;
+
+  --color-energy: #facc15;
+  --color-energy-dim: #ca8a04;
+  --color-energy-pale: #fef08a;
+
+  --color-mars: #f87171;
+  --color-mars-dim: #dc2626;
+
+  --color-success: #4ade80;
+  --color-success-dim: #16a34a;
+
+  /* Tier colors */
+  --color-tier-solar: #facc15;
+  --color-tier-mine: #f87171;
+  --color-tier-hydro: #34d399;
+  --color-tier-drone: #a78bfa;
+}
+
+/* ========================================
+   BASE & GLASSMORPHISM
+   ======================================== */
+
+.pixelated {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.glass {
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+.glass-strong {
+  background: rgba(11, 17, 32, 0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ========================================
+   SCROLLBAR
+   ======================================== */
+
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* ========================================
+   CRT EFFECT - Always Active
+   ======================================== */
+
+.crt-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+}
+
+.crt-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.06),
+    rgba(0, 0, 0, 0.06) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+}
+
+.crt-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 55%,
+    rgba(0, 0, 0, 0.35) 100%
+  );
+  pointer-events: none;
+}
+
+.crt-chromatic {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9997;
+  box-shadow:
+    inset 1px 0 2px -1px rgba(255, 0, 0, 0.025),
+    inset -1px 0 2px -1px rgba(0, 255, 255, 0.025);
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+
+@keyframes floatUp {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  60% { opacity: 0.7; }
+  100% { opacity: 0; transform: translateY(-45px) scale(0.95); }
+}
+
+.animate-float-up {
+  animation: floatUp 0.9s ease-out forwards;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px) rotate(-1deg); }
+  75% { transform: translateX(3px) rotate(1deg); }
+}
+
+.animate-shake {
+  animation: shake 0.15s ease-in-out;
+}
+
+@keyframes glowPulse {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.3)); }
+  50% { filter: drop-shadow(0 0 25px rgba(34, 211, 238, 0.6)); }
+}
+
+.animate-glow-pulse {
+  animation: glowPulse 3s ease-in-out infinite;
+}
+
+@keyframes ringRotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.animate-ring-rotate {
+  animation: ringRotate 10s linear infinite;
+}
+
+@keyframes ringRotateReverse {
+  0% { transform: rotate(360deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.animate-ring-rotate-reverse {
+  animation: ringRotateReverse 14s linear infinite;
+}
+
+/* ========================================
+   CARD EFFECTS
+   ======================================== */
+
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+}
+
+/* ========================================
+   ENERGY GLOW
+   ======================================== */
+
+.energy-glow {
+  text-shadow:
+    0 0 12px rgba(250, 204, 21, 0.4),
+    0 0 30px rgba(250, 204, 21, 0.2),
+    0 0 60px rgba(250, 204, 21, 0.1);
+}
+
+/* ========================================
+   TAB CONTENT
+   ======================================== */
+
+.tab-content {
+  transition: opacity 0.2s ease;
+}
+
+/* ========================================
+   AFFORDABLE GLOW - subtle pulse on purchasable items
+   ======================================== */
+
+@keyframes affordablePulse {
+  0%, 100% { border-color: rgba(255, 255, 255, 0.08); }
+  50% { border-color: rgba(250, 204, 21, 0.15); }
+}
+
+.affordable-glow {
+  animation: affordablePulse 2s ease-in-out infinite;
+}
