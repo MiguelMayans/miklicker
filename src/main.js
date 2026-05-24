@@ -8,6 +8,7 @@ import { getState, updateState } from './state.js';
 import { load, save, startAutoSave } from './engine/saveLoad.js';
 import { start, pause, resume, processOfflineTime } from './engine/gameLoop.js';
 import { initUI } from './ui/renderer.js';
+import { initRandomEvents } from './engine/randomEvents.js';
 import { emit } from './utils/eventBus.js';
 
 function bootstrap() {
@@ -22,6 +23,7 @@ function bootstrap() {
   }
 
   initUI();
+  initRandomEvents();
   startAutoSave();
   start();
 

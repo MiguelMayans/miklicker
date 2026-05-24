@@ -1,5 +1,5 @@
 /**
- * Renderizado del panel de mejoras (upgrades) completamente funcional.
+ * Upgrades — Tarjetas compactas con info integrada (sin tooltip flotante).
  */
 
 import { getState, updateState } from '../state.js';
@@ -9,12 +9,11 @@ import { isUpgradeAvailable } from '../engine/formulas.js';
 import { formatNumber } from '../utils/numbers.js';
 import { emit } from '../utils/eventBus.js';
 import { addRandomLog } from './log.js';
-import { showTooltip, hideTooltip } from './tooltip.js';
 import { spawnPurchaseRain } from './particles.js';
+import { playPurchaseDing } from '../audio/audioEngine.js';
+import { initAutoClickers } from '../engine/autoClicker.js';
 
-/** @type {HTMLElement|null} */
 let upgradesContainer = null;
-
 const upgradeCards = new Map();
 
 export function initUpgrades(container) {
@@ -35,9 +34,7 @@ export function refreshUpgrades() {
       if (wasAvailable) {
         const refs = upgradeCards.get(upgrade.id);
         if (refs?.card) {
-          // Animación de desaparición
           refs.card.style.opacity = '0';
-          refs.card.style.transform = 'scale(0.95)';
           setTimeout(() => refs.card.remove(), 200);
           upgradeCards.delete(upgrade.id);
         }
@@ -60,8 +57,8 @@ export function refreshUpgrades() {
     refs.card.className = getUpgradeCardClasses(canAfford);
     refs.card.dataset.canAfford = String(canAfford);
 
-    refs.costEl.textContent = `⚡ ${formatNumber(upgrade.cost)}`;
-    refs.costEl.className = `text-[10px] font-bold ${canAfford ? 'text-energy' : 'text-mars'}`;
+    refs.costEl.textContent = `${formatNumber(upgrade.cost, 0)} kWh`;
+    refs.costEl.className = `text-sm font-extrabold ${canAfford ? 'text-[#06b6d4]' : 'text-[#dc2626]'}`;
 
     if (canAfford && refs.card.dataset.hasClick !== 'true') {
       refs.card.addEventListener('click', refs.clickHandler);
@@ -99,32 +96,79 @@ function renderUpgrades() {
 
     if (canAfford) card.addEventListener('click', clickHandler);
 
-    card.addEventListener('mouseenter', (e) => showUpgradeTooltip(e, upgrade));
-    card.addEventListener('mouseleave', hideTooltip);
-
     const info = document.createElement('div');
     info.className = 'flex-1 min-w-0';
 
-    const titleRow = document.createElement('div');
-    titleRow.className = 'flex items-center justify-between';
+    // Row 1: Name + Cost
+    const row1 = document.createElement('div');
+    row1.className = 'flex items-center justify-between gap-2';
 
     const name = document.createElement('span');
-    name.className = 'font-pixel text-[11px] text-cyan-pale truncate';
+    name.className = 'text-sm font-extrabold text-[#0f0f0f] truncate';
     name.textContent = upgrade.name;
 
     const costEl = document.createElement('span');
-    costEl.className = `text-[11px] font-bold ${canAfford ? 'text-energy' : 'text-mars'}`;
-    costEl.textContent = `⚡ ${formatNumber(upgrade.cost)}`;
+    costEl.className = `text-sm font-extrabold ${canAfford ? 'text-[#06b6d4]' : 'text-[#dc2626]'}`;
+    costEl.textContent = `${formatNumber(upgrade.cost, 0)} kWh`;
 
-    titleRow.appendChild(name);
-    titleRow.appendChild(costEl);
+    row1.appendChild(name);
+    row1.appendChild(costEl);
 
+    // Row 2: Description
     const desc = document.createElement('p');
-    desc.className = 'text-[11px] text-slate-400 mt-1 leading-relaxed';
+    desc.className = 'text-xs text-[#3a3a35] leading-tight mt-0.5 truncate';
     desc.textContent = upgrade.description;
 
-    info.appendChild(titleRow);
+    // Row 3: Effect
+    const row3 = document.createElement('div');
+    row3.className = 'text-xs font-bold text-[#06b6d4] mt-1';
+    const fx = upgrade.effect;
+    if (fx.type === 'building_multiplier') {
+      const target = BUILDINGS_BY_ID.get(fx.target)?.name ?? fx.target;
+      row3.textContent = `Efecto: producción de ${target} ×${fx.multiplier}`;
+    } else if (fx.type === 'click_multiplier') {
+      row3.textContent = `Efecto: poder de clic ×${fx.multiplier}`;
+    } else if (fx.type === 'cursor_interval') {
+      row3.textContent = `Efecto: velocidad de cursor ×${fx.multiplier}`;
+    } else if (fx.type === 'cursor_multiplier') {
+      row3.textContent = `Efecto: poder de cursor ×${fx.multiplier}`;
+    } else if (fx.type === 'global_multiplier') {
+      row3.textContent = `Efecto: producción global ×${fx.multiplier}`;
+    } else if (fx.type === 'synergy') {
+      const source = BUILDINGS_BY_ID.get(fx.source)?.name ?? fx.source;
+      const target = BUILDINGS_BY_ID.get(fx.target)?.name ?? fx.target;
+      row3.textContent = `Sinergia: ${source} potencia ${target} +${Math.round(fx.bonusPerSource * 100)}% c/u`;
+    } else {
+      row3.textContent = 'Efecto: mejora activa';
+    }
+
+    // Tooltip integrado al hover
+    const tooltip = document.createElement('div');
+    tooltip.className = 'hidden text-[10px] text-[#444444] mt-1.5 pt-1.5 border-t border-[#cccccc] leading-snug';
+    const reqText = upgrade.requires?.building
+      ? `Requiere: ${BUILDINGS_BY_ID.get(upgrade.requires.building)?.name ?? upgrade.requires.building} ×${upgrade.requires.count}`
+      : upgrade.requires?.totalClicks
+        ? `Requiere: ${upgrade.requires.totalClicks} clics manuales`
+        : 'Sin requisitos';
+    tooltip.innerHTML = `
+      <div class="flex items-center justify-between gap-2">
+        <span>ID Protocolo:</span>
+        <span class="font-mono font-bold text-[#0f0f0f]">${upgrade.id}</span>
+      </div>
+      <div class="flex items-center justify-between gap-2">
+        <span>Requisito:</span>
+        <span class="font-bold">${reqText}</span>
+      </div>
+    `;
+
+    info.appendChild(row1);
     info.appendChild(desc);
+    info.appendChild(row3);
+    info.appendChild(tooltip);
+
+    card.addEventListener('mouseenter', () => tooltip.classList.remove('hidden'));
+    card.addEventListener('mouseleave', () => tooltip.classList.add('hidden'));
+
     card.appendChild(info);
     fragment.appendChild(card);
 
@@ -133,8 +177,8 @@ function renderUpgrades() {
 
   if (visibleCount === 0) {
     const empty = document.createElement('div');
-    empty.className = 'text-center text-[10px] text-cosmic-500 py-8';
-    empty.textContent = 'No hay mejoras disponibles por ahora...';
+    empty.className = 'text-center text-sm text-[#6b6b64] py-8';
+    empty.textContent = 'No hay mejoras disponibles.';
     fragment.appendChild(empty);
   }
 
@@ -153,28 +197,32 @@ function purchaseUpgrade(upgradeId) {
 
   const newState = { ...state, energy: newEnergy, upgrades: newUpgrades };
 
-  if (upgrade.effect.type === 'building_multiplier') {
-    const current = newState.buildingMultipliers?.[upgrade.effect.target] ?? 1;
+  const fx = upgrade.effect;
+  if (fx.type === 'building_multiplier') {
+    const current = newState.buildingMultipliers?.[fx.target] ?? 1;
     newState.buildingMultipliers = {
       ...newState.buildingMultipliers,
-      [upgrade.effect.target]: current * upgrade.effect.multiplier,
+      [fx.target]: current * fx.multiplier,
     };
-  } else if (upgrade.effect.type === 'click_multiplier') {
-    newState.clickPower = state.clickPower * upgrade.effect.multiplier;
+  } else if (fx.type === 'click_multiplier') {
+    newState.clickPower = state.clickPower * fx.multiplier;
+  } else if (fx.type === 'cursor_interval') {
+    newState.cursorIntervalMultiplier = (state.cursorIntervalMultiplier ?? 1) * fx.multiplier;
+  } else if (fx.type === 'cursor_multiplier') {
+    newState.cursorMultiplier = (state.cursorMultiplier ?? 1) * fx.multiplier;
+  } else if (fx.type === 'global_multiplier') {
+    newState.globalMultiplier = (state.globalMultiplier ?? 1) * fx.multiplier;
   }
+  // synergy se calcula dinámicamente en formulas.js, no necesita estado
 
   updateState(newState);
 
-  // Feedback visual de compra
   const card = upgradeCards.get(upgradeId)?.card;
   if (card) {
     const rect = card.getBoundingClientRect();
-    // Partículas doradas
-    spawnPurchaseRain(rect.left + rect.width / 2, rect.top, '#facc15');
-    // Flash intenso en la tarjeta
+    spawnPurchaseRain(rect.left + rect.width / 2, rect.top, '#06b6d4');
     flashUpgradeCard(card);
-    // Número flotante con el nombre de la mejora
-    spawnUpgradeFloatingText(rect.left + rect.width / 2, rect.top, upgrade.name);
+    spawnFloatingText(rect.left + rect.width / 2, rect.top, upgrade.name);
   }
 
   addRandomLog('upgrade_purchased', { name: upgrade.name }, 'success');
@@ -183,61 +231,31 @@ function purchaseUpgrade(upgradeId) {
 }
 
 function getUpgradeCardClasses(canAfford) {
-  const base = 'p-4 rounded-2xl border transition-all duration-200 card-hover';
+  const base = 'p-3 border-[3px] bg-[#eae7e0] block-interactive';
   if (canAfford) {
-    return `${base} bg-white/[0.04] border-energy/20 cursor-pointer hover:bg-white/[0.07] hover:border-energy/50 affordable-glow`;
+    return `${base} border-[#0f0f0f] border-l-[5px] border-l-[#06b6d4] cursor-pointer`;
   }
-  return `${base} bg-white/[0.02] border-white/[0.04] opacity-40 cursor-not-allowed`;
+  return `${base} border-[#a09c94] opacity-40 cursor-not-allowed`;
 }
 
-function showUpgradeTooltip(e, upgrade) {
-  let effectText = '';
-  if (upgrade.effect.type === 'building_multiplier') {
-    const target = BUILDINGS_BY_ID.get(upgrade.effect.target)?.name ?? upgrade.effect.target;
-    effectText = `Multiplica la producción de <b style="color:#22d3ee">${target}</b> por ${upgrade.effect.multiplier}`;
-  } else if (upgrade.effect.type === 'click_multiplier') {
-    effectText = `Multiplica el poder de clic por ${upgrade.effect.multiplier}`;
-  }
-
-  showTooltip(e.currentTarget, `
-    <div class="font-pixel text-[10px] text-cyan-pale mb-1">${upgrade.name}</div>
-    <div class="text-[10px] text-slate-300 mb-1.5">${upgrade.description}</div>
-    <div class="text-[10px] text-energy">Efecto: ${effectText}</div>
-    <div class="text-[10px] text-cosmic-500 mt-1">Coste: ⚡ ${formatNumber(upgrade.cost)}</div>
-  `);
-}
-
-/**
- * Flash intenso en la tarjeta de mejora al comprar.
- * @param {HTMLElement} card
- */
 function flashUpgradeCard(card) {
   card.style.transition = 'all 0.3s ease';
-  card.style.backgroundColor = 'rgba(250, 204, 21, 0.15)';
-  card.style.borderColor = 'rgba(250, 204, 21, 0.6)';
-  card.style.transform = 'scale(1.02)';
+  card.style.backgroundColor = '#dbeafe';
+  card.style.borderColor = '#06b6d4';
 
   setTimeout(() => {
     card.style.backgroundColor = '';
     card.style.borderColor = '';
-    card.style.transform = '';
   }, 400);
 }
 
-/**
- * Muestra texto flotante con el nombre de la mejora comprada.
- * @param {number} x
- * @param {number} y
- * @param {string} text
- */
-function spawnUpgradeFloatingText(x, y, text) {
+function spawnFloatingText(x, y, text) {
   const el = document.createElement('div');
   el.textContent = text;
-  el.className = 'fixed pointer-events-none font-pixel text-xs text-energy font-bold animate-float-up';
+  el.className = 'fixed pointer-events-none text-xs font-extrabold text-[#06b6d4] animate-float-up';
   el.style.left = `${x}px`;
   el.style.top = `${y - 20}px`;
   el.style.zIndex = '100';
-  el.style.textShadow = '0 0 8px rgba(250,204,21,0.8), 0 0 16px rgba(250,204,21,0.4)';
   el.style.whiteSpace = 'nowrap';
 
   document.body.appendChild(el);

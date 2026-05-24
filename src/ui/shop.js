@@ -1,21 +1,32 @@
 /**
- * Renderizado de la tienda de edificios con paleta por tier y tooltips.
+ * Shop — Tarjetas compactas con info integrada (sin tooltip flotante).
  */
 
 import { getState, updateState } from '../state.js';
 import { BUILDINGS, BUILDINGS_BY_ID } from '../data/buildings.js';
 import { calculateBuildingCost, isBuildingUnlocked } from '../engine/formulas.js';
+import { BUILDING_COST_GROWTH_RATE } from '../config.js';
 import { formatNumber } from '../utils/numbers.js';
 import { emit } from '../utils/eventBus.js';
 import { addRandomLog } from './log.js';
-import { showTooltip, hideTooltip } from './tooltip.js';
-import { spawnPurchaseRain, spawnUnlockConfetti } from './particles.js';
+import { spawnPurchaseRain } from './particles.js';
+import { playPurchaseDing } from '../audio/audioEngine.js';
+import { initAutoClickers } from '../engine/autoClicker.js';
 
-/** @type {HTMLElement|null} */
 let shopContainer = null;
-
 const buildingCards = new Map();
 const unlockedBuildings = new Set();
+
+let buyQuantity = 1;
+
+export function setBuyQuantity(qty) {
+  buyQuantity = qty;
+  renderShop(); // re-render para actualizar costes
+}
+
+export function getBuyQuantity() {
+  return buyQuantity;
+}
 
 export function initShop(container) {
   shopContainer = container;
@@ -42,15 +53,23 @@ export function refreshShopAffordability() {
     const refs = buildingCards.get(building.id);
     if (!refs) continue;
 
-    const cost = calculateBuildingCost(building.baseCost, owned);
+    const qty = buyQuantity === -1 ? calculateMaxBuy(building.baseCost, owned, state.energy) || 1 : buyQuantity;
+    const cost = calculateBulkCost(building.baseCost, owned, qty);
     const canAfford = state.energy >= cost;
 
-    refs.card.className = getCardClasses(canAfford, building.tierColor);
+    refs.card.className = getCardClasses(canAfford);
     refs.card.dataset.canAfford = String(canAfford);
 
-    refs.costEl.textContent = `⚡ ${formatNumber(cost)}`;
-    refs.costEl.className = `text-[10px] font-bold ${canAfford ? 'text-energy' : 'text-mars'}`;
-    refs.countEl.textContent = `x${owned}`;
+    const qtyLabel = buyQuantity === -1 ? (qty > 1 ? `×${qty} ` : '') : `×${qty} `;
+    refs.costEl.textContent = `${qtyLabel}${formatNumber(cost, 0)} kWh`;
+    refs.costEl.className = `text-sm font-extrabold ${canAfford ? 'text-[#06b6d4]' : 'text-[#dc2626]'}`;
+    refs.countEl.textContent = String(owned);
+    if (building.isAutoClicker) {
+      refs.totalProdEl.textContent = `+${formatNumber(owned)} clics`;
+    } else {
+      refs.totalProdEl.textContent = `+${formatNumber(building.baseProduction * owned, 1)} kW`;
+    }
+    refs.nextCostEl.textContent = `prox: ${formatNumber(calculateBuildingCost(building.baseCost, owned + 1), 0)} kWh`;
 
     if (canAfford && refs.card.dataset.hasClick !== 'true') {
       refs.card.addEventListener('click', refs.clickHandler);
@@ -88,90 +107,140 @@ function renderShop() {
     }
     unlockedBuildings.add(building.id);
 
-    const cost = calculateBuildingCost(building.baseCost, owned);
+    const qty = buyQuantity === -1 ? calculateMaxBuy(building.baseCost, owned, state.energy) || 1 : buyQuantity;
+    const cost = calculateBulkCost(building.baseCost, owned, qty);
     const canAfford = state.energy >= cost;
     const clickHandler = () => purchaseBuilding(building.id);
 
     const card = document.createElement('div');
-    card.className = getCardClasses(canAfford, building.tierColor);
+    card.className = getCardClasses(canAfford);
     card.dataset.canAfford = String(canAfford);
     card.dataset.hasClick = canAfford ? 'true' : 'false';
 
     if (canAfford) card.addEventListener('click', clickHandler);
 
-    card.addEventListener('mouseenter', (e) => showBuildingTooltip(e, building, owned, cost));
-    card.addEventListener('mouseleave', hideTooltip);
-
-    // Glow border on hover
-    card.style.borderColor = canAfford ? `${building.tierColor}30` : 'rgba(255,255,255,0.05)';
-
     const img = document.createElement('img');
     img.src = `sprites/${building.sprite}`;
     img.alt = building.name;
-    img.className = 'w-11 h-11 pixelated flex-shrink-0';
-    img.width = 64;
-    img.height = 64;
+    img.className = 'w-10 h-10 pixelated flex-shrink-0';
 
     const info = document.createElement('div');
     info.className = 'flex-1 min-w-0';
 
-    const titleRow = document.createElement('div');
-    titleRow.className = 'flex items-center justify-between';
+    // Row 1: Name + Count + Cost
+    const row1 = document.createElement('div');
+    row1.className = 'flex items-center justify-between gap-2';
+
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'flex items-center gap-1.5 min-w-0';
 
     const name = document.createElement('span');
-    name.className = 'font-pixel text-[11px] truncate';
-    name.style.color = building.tierColor;
+    name.className = 'text-sm font-extrabold text-[#0f0f0f] truncate';
     name.textContent = building.name;
 
     const countEl = document.createElement('span');
-    countEl.className = 'font-pixel text-[10px] text-cosmic-500 ml-2';
-    countEl.textContent = `x${owned}`;
+    countEl.className = 'text-xs font-bold text-[#6b6b64] bg-[#d4d0c8] px-1.5 border border-[#a09c94]';
+    countEl.textContent = String(owned);
 
-    titleRow.appendChild(name);
-    titleRow.appendChild(countEl);
-
-    const desc = document.createElement('p');
-    desc.className = 'text-[11px] text-slate-400 mt-1 leading-relaxed';
-    desc.textContent = building.description;
-
-    // Precio prominente
-    const costRow = document.createElement('div');
-    costRow.className = 'mt-3';
+    nameWrap.appendChild(name);
+    nameWrap.appendChild(countEl);
 
     const costEl = document.createElement('span');
-    costEl.className = `inline-flex items-center gap-1.5 text-sm font-bold ${canAfford ? 'text-energy' : 'text-mars'}`;
-    costEl.innerHTML = `<span class="text-base">⚡</span> ${formatNumber(cost)}`;
+    costEl.className = `text-sm font-extrabold ${canAfford ? 'text-[#06b6d4]' : 'text-[#dc2626]'}`;
+    const qtyLabel = buyQuantity === -1 ? (qty > 1 ? `×${qty} ` : '') : `×${qty} `;
+    costEl.textContent = `${qtyLabel}${formatNumber(cost, 0)} kWh`;
 
-    costRow.appendChild(costEl);
+    row1.appendChild(nameWrap);
+    row1.appendChild(costEl);
 
-    // Producción secundaria (más pequeña)
-    const prodRow = document.createElement('div');
-    prodRow.className = 'flex items-center gap-1.5 mt-1';
+    // Row 2: Description
+    const desc = document.createElement('p');
+    desc.className = 'text-xs text-[#3a3a35] leading-tight mt-0.5 truncate';
+    desc.textContent = building.description;
 
-    const prodDot = document.createElement('span');
-    prodDot.className = 'w-1.5 h-1.5 rounded-full';
-    prodDot.style.backgroundColor = building.tierColor;
+    // Row 3: Stats line (cursor especial)
+    const row3 = document.createElement('div');
+    row3.className = 'flex items-center gap-3 mt-1 text-xs font-medium text-[#6b6b64]';
 
-    const prodEl = document.createElement('span');
-    prodEl.className = 'text-[10px] text-slate-400';
-    prodEl.textContent = `+${formatNumber(building.baseProduction)}/s`;
+    let totalProdEl;
 
-    prodRow.appendChild(prodDot);
-    prodRow.appendChild(prodEl);
+    if (building.isAutoClicker) {
+      const interval = (building.autoClickInterval ?? 10000) / 1000;
+      const perUnit = document.createElement('span');
+      perUnit.textContent = `Cada ${formatNumber(interval)}s`;
 
-    info.appendChild(titleRow);
+      totalProdEl = document.createElement('span');
+      totalProdEl.className = 'text-[#0f0f0f] font-bold';
+      totalProdEl.textContent = `+${formatNumber(owned)} clics`;
+
+      row3.appendChild(perUnit);
+      row3.appendChild(totalProdEl);
+    } else {
+      const perUnit = document.createElement('span');
+      perUnit.textContent = `+${formatNumber(building.baseProduction, 1)} kW/u`;
+
+      totalProdEl = document.createElement('span');
+      totalProdEl.className = 'text-[#0f0f0f] font-bold';
+      totalProdEl.textContent = `+${formatNumber(building.baseProduction * owned, 1)} kW`;
+
+      row3.appendChild(perUnit);
+      row3.appendChild(totalProdEl);
+    }
+
+    const nextCostEl = document.createElement('span');
+    nextCostEl.textContent = `prox: ${formatNumber(calculateBuildingCost(building.baseCost, owned + 1), 0)} kWh`;
+    row3.appendChild(nextCostEl);
+
+    // Tooltip integrado (se expande al hover)
+    const tooltip = document.createElement('div');
+    tooltip.className = 'hidden text-[10px] text-[#444444] mt-1.5 pt-1.5 border-t border-[#cccccc] leading-snug';
+    tooltip.innerHTML = `
+      <div class="flex items-center justify-between gap-2">
+        <span>Producción base:</span>
+        <span class="font-bold text-[#0f0f0f]">${building.isAutoClicker ? 'Auto-clicker' : `+${formatNumber(building.baseProduction, 1)} kW`}</span>
+      </div>
+      <div class="flex items-center justify-between gap-2">
+        <span>Desbloqueo:</span>
+        <span class="font-bold">${formatNumber(building.unlockAt, 0)} kWh</span>
+      </div>
+      <div class="flex items-center justify-between gap-2">
+        <span>Crecimiento coste:</span>
+        <span class="font-bold">×${BUILDING_COST_GROWTH_RATE}</span>
+      </div>
+    `;
+
+    info.appendChild(row1);
     info.appendChild(desc);
-    info.appendChild(costRow);
-    info.appendChild(prodRow);
+    info.appendChild(row3);
+    info.appendChild(tooltip);
+
+    // Hover para mostrar tooltip
+    card.addEventListener('mouseenter', () => {
+      tooltip.classList.remove('hidden');
+    });
+    card.addEventListener('mouseleave', () => {
+      tooltip.classList.add('hidden');
+    });
 
     card.appendChild(img);
     card.appendChild(info);
     fragment.appendChild(card);
 
-    buildingCards.set(building.id, { card, costEl, countEl, clickHandler });
+    buildingCards.set(building.id, { card, costEl, countEl, totalProdEl, nextCostEl, clickHandler });
   }
 
   shopContainer.appendChild(fragment);
+}
+
+/**
+ * Calcula el coste total de comprar `qty` edificios adicionales.
+ * Serie geométrica: cost = baseCost * r^owned * (r^qty - 1) / (r - 1)
+ */
+function calculateBulkCost(baseCost, owned, qty) {
+  if (qty <= 1) return calculateBuildingCost(baseCost, owned);
+  const r = BUILDING_COST_GROWTH_RATE;
+  const first = calculateBuildingCost(baseCost, owned);
+  return Math.floor(first * (Math.pow(r, qty) - 1) / (r - 1));
 }
 
 function purchaseBuilding(buildingId) {
@@ -180,86 +249,91 @@ function purchaseBuilding(buildingId) {
 
   const state = getState();
   const owned = state.buildings[buildingId] ?? 0;
-  const cost = calculateBuildingCost(building.baseCost, owned);
 
+  // Determinar cantidad real a comprar (MAX = todo lo que se pueda)
+  let qty = buyQuantity;
+  if (qty === -1) { // MAX
+    qty = calculateMaxBuy(building.baseCost, owned, state.energy);
+    if (qty <= 0) return;
+  }
+
+  const cost = calculateBulkCost(building.baseCost, owned, qty);
   if (state.energy < cost) return;
 
-  const newBuildings = { ...state.buildings, [buildingId]: owned + 1 };
+  const newBuildings = { ...state.buildings, [buildingId]: owned + qty };
   const newEnergy = state.energy - cost;
 
   updateState({ energy: newEnergy, buildings: newBuildings });
 
-  // Feedback visual de compra
   const card = buildingCards.get(buildingId)?.card;
   if (card) {
     const rect = card.getBoundingClientRect();
-    // Partículas del color del tier
-    spawnPurchaseRain(rect.left + rect.width / 2, rect.top, building.tierColor);
-    // Flash con el color del edificio
-    flashBuildingCard(card, building.tierColor);
-    // Nombre flotante
-    spawnBuildingFloatingText(rect.left + rect.width / 2, rect.top, building.name);
+    spawnPurchaseRain(rect.left + rect.width / 2, rect.top, '#06b6d4');
+    flashCard(card);
+    spawnFloatingText(rect.left + rect.width / 2, rect.top, `${building.name} ×${qty}`);
   }
 
-  addRandomLog('building_purchased', { name: building.name }, 'success');
-  emit('buildingPurchased', { id: buildingId, name: building.name, count: owned + 1 });
+  playPurchaseDing();
+
+  if (building.isAutoClicker) {
+    initAutoClickers();
+  }
+
+  addRandomLog('building_purchased', { name: building.name, qty }, 'success');
+  emit('buildingPurchased', { id: buildingId, name: building.name, count: owned + qty });
   emit('stateUpdated', { energy: newEnergy, buildings: newBuildings });
 }
 
-function getCardClasses(canAfford, tierColor) {
-  const base = 'flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 card-hover';
-  if (canAfford) {
-    return `${base} bg-white/[0.04] border-white/[0.08] cursor-pointer hover:bg-white/[0.07] hover:border-white/[0.15] affordable-glow`;
-  }
-  return `${base} bg-white/[0.02] border-white/[0.04] opacity-40 cursor-not-allowed`;
+/**
+ * Calcula cuántos edificios se pueden comprar con la energía disponible.
+ */
+function calculateMaxBuy(baseCost, owned, energy) {
+  const r = BUILDING_COST_GROWTH_RATE;
+  const first = calculateBuildingCost(baseCost, owned);
+  // Serie geométrica: energy >= first * (r^N - 1) / (r - 1)
+  // r^N <= 1 + energy * (r - 1) / first
+  // N <= log(1 + energy * (r - 1) / first) / log(r)
+  const maxN = Math.floor(Math.log(1 + energy * (r - 1) / first) / Math.log(r));
+  return Math.max(0, maxN);
 }
 
-function showBuildingTooltip(e, building, owned, cost) {
-  const nextCost = calculateBuildingCost(building.baseCost, owned + 1);
-  const totalProd = building.baseProduction * owned;
-
-  showTooltip(e.currentTarget, `
-    <div class="font-pixel text-[10px] mb-1" style="color:${building.tierColor}">${building.name}</div>
-    <div class="text-[10px] text-slate-300 mb-1.5">${building.description}</div>
-    <div class="text-[10px]" style="color:${building.tierColor}">Producción: +${formatNumber(building.baseProduction)}/s cada uno</div>
-    <div class="text-[10px] text-cosmic-500">Poseídos: ${owned} | Total: +${formatNumber(totalProd)}/s</div>
-    <div class="text-[10px] text-energy mt-1">Coste: ⚡ ${formatNumber(cost)}</div>
-    <div class="text-[10px] text-cosmic-500">Siguiente: ⚡ ${formatNumber(nextCost)}</div>
-  `);
+function getCardClasses(canAfford) {
+  const base = 'flex items-start gap-3 p-3 border-[3px] bg-[#eae7e0] block-interactive';
+  if (canAfford) {
+    return `${base} border-[#0f0f0f] border-l-[5px] border-l-[#06b6d4] cursor-pointer`;
+  }
+  return `${base} border-[#a09c94] opacity-50 cursor-not-allowed`;
 }
 
 function createLockedCard(building, progress) {
   const card = document.createElement('div');
-  card.className = 'flex items-center gap-3 p-3 rounded-xl border border-white/[0.04] bg-white/[0.02] opacity-40';
+  card.className = 'flex items-center gap-3 p-3 border-[3px] border-[#a09c94] bg-[#d8d5ce] opacity-40';
 
   const imgWrapper = document.createElement('div');
-  imgWrapper.className = 'w-10 h-10 flex-shrink-0 rounded-lg bg-white/[0.05] flex items-center justify-center';
+  imgWrapper.className = 'w-10 h-10 flex-shrink-0 border-[3px] border-[#a09c94] bg-[#eae7e0] flex items-center justify-center';
   const img = document.createElement('img');
   img.src = `sprites/${building.sprite}`;
   img.alt = building.name;
-  img.className = 'w-7 h-7 pixelated opacity-30';
-  img.width = 28;
-  img.height = 28;
+  img.className = 'w-6 h-6 pixelated opacity-30';
   imgWrapper.appendChild(img);
 
   const info = document.createElement('div');
   info.className = 'flex-1 min-w-0';
 
   const name = document.createElement('span');
-  name.className = 'font-pixel text-[10px] text-cosmic-600 truncate block';
+  name.className = 'text-sm font-extrabold text-[#6b6b64] block';
   name.textContent = '???';
 
   const desc = document.createElement('p');
-  desc.className = 'text-[10px] text-cosmic-600 mt-0.5';
-  desc.textContent = `Desbloquea a ${formatNumber(building.unlockAt)} energía`;
+  desc.className = 'text-xs text-[#6b6b64] mt-0.5';
+  desc.textContent = `Requiere ${formatNumber(building.unlockAt, 0)} kWh acumulados`;
 
   const barContainer = document.createElement('div');
-  barContainer.className = 'w-full h-1 bg-white/5 rounded-full mt-2 overflow-hidden';
+  barContainer.className = 'w-full h-2 bg-[#ddd9d2] mt-2';
   const barFill = document.createElement('div');
-  barFill.className = 'h-full rounded-full transition-all duration-700';
+  barFill.className = 'h-full bg-[#06b6d4] transition-all duration-700';
   barFill.style.width = `${progress}%`;
-  barFill.style.backgroundColor = building.tierColor;
-  barFill.style.opacity = '0.6';
+  barFill.style.opacity = '0.7';
   barContainer.appendChild(barFill);
 
   info.appendChild(name);
@@ -272,41 +346,24 @@ function createLockedCard(building, progress) {
   return card;
 }
 
-/**
- * Flash intenso en la tarjeta de edificio al comprar.
- * Usa el color del tier del edificio.
- * @param {HTMLElement} card
- * @param {string} color - Color hex del tier.
- */
-function flashBuildingCard(card, color) {
+function flashCard(card) {
   card.style.transition = 'all 0.3s ease';
-  card.style.backgroundColor = `${color}20`; // 20 = ~12% opacity en hex
-  card.style.borderColor = `${color}90`;   // 90 = ~56% opacity
-  card.style.transform = 'scale(1.02)';
-  card.style.boxShadow = `0 0 20px ${color}30`;
+  card.style.backgroundColor = '#dbeafe';
+  card.style.borderColor = '#06b6d4';
 
   setTimeout(() => {
     card.style.backgroundColor = '';
     card.style.borderColor = '';
-    card.style.transform = '';
-    card.style.boxShadow = '';
   }, 400);
 }
 
-/**
- * Muestra texto flotante con el nombre del edificio comprado.
- * @param {number} x
- * @param {number} y
- * @param {string} text
- */
-function spawnBuildingFloatingText(x, y, text) {
+function spawnFloatingText(x, y, text) {
   const el = document.createElement('div');
   el.textContent = text;
-  el.className = 'fixed pointer-events-none font-pixel text-[10px] text-energy font-bold animate-float-up';
+  el.className = 'fixed pointer-events-none text-xs font-extrabold text-[#06b6d4] animate-float-up';
   el.style.left = `${x}px`;
   el.style.top = `${y - 20}px`;
   el.style.zIndex = '100';
-  el.style.textShadow = '0 0 8px rgba(250,204,21,0.8), 0 0 16px rgba(250,204,21,0.4)';
   el.style.whiteSpace = 'nowrap';
 
   document.body.appendChild(el);

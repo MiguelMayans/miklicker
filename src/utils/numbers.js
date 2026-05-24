@@ -1,6 +1,7 @@
 /**
  * Utilidades para formatear números grandes.
- * Sistema preparado para escalar hasta notación científica sin usar librerías externas.
+ * Sufijos estándar hasta 1e66, luego notación científica limpia.
+ * Maneja Infinity con gracia.
  */
 
 const SUFFIXES = [
@@ -12,9 +13,9 @@ const SUFFIXES = [
 ];
 
 /**
- * Formatea un número con sufijos (K, M, B, T...) o notación científica si es necesario.
+ * Formatea un número con sufijos o notación científica.
  * @param {number} value
- * @param {number} decimals - Decimales a mostrar (default 2)
+ * @param {number} decimals - Decimales a mostrar
  * @returns {string}
  */
 export function formatNumber(value, decimals = 2) {
@@ -22,27 +23,28 @@ export function formatNumber(value, decimals = 2) {
   if (!Number.isFinite(value)) return '∞';
   if (value < 0) return '-' + formatNumber(-value, decimals);
 
-  const tier = Math.floor(Math.log10(value) / 3);
+  const exponent = Math.floor(Math.log10(value));
+  const tier = Math.floor(exponent / 3);
 
+  // Pequeños: sin sufijo, siempre con decimales fijos para evitar saltos visuales
   if (tier === 0) {
-    // Números pequeños: mostrar enteros si no tienen decimales relevantes
-    return Number.isInteger(value) ? String(value) : value.toFixed(decimals).replace(/\.?0+$/, '');
+    return value.toFixed(decimals);
   }
 
+  // Sufijos hasta 1e66 (22 tiers)
   if (tier < SUFFIXES.length) {
     const suffix = SUFFIXES[tier];
     const scaled = value / Math.pow(10, tier * 3);
     return scaled.toFixed(decimals).replace(/\.?0+$/, '') + suffix;
   }
 
-  // Muy grande: notación científica limpia
-  const exponent = Math.floor(Math.log10(value));
+  // Notación científica limpia: 1.23e45
   const mantissa = value / Math.pow(10, exponent);
-  return `${mantissa.toFixed(decimals)}e${exponent}`;
+  return `${mantissa.toFixed(Math.max(0, decimals - 1))}e${exponent}`;
 }
 
 /**
- * Versión entera compacta para displays pequeños (ej. costes en botones).
+ * Versión compacta para displays pequeños.
  * @param {number} value
  * @returns {string}
  */
@@ -51,11 +53,11 @@ export function formatCompact(value) {
 }
 
 /**
- * Formatea una tasa por segundo (ej. "+1.23K/s").
+ * Formatea una tasa (kW).
  * @param {number} value
  * @returns {string}
  */
 export function formatRate(value) {
-  const sign = value >= 0 ? '+' : '';
-  return `${sign}${formatNumber(value, 1)}/s`;
+  const sign = value >= 0 ? '' : '-';
+  return `${sign}${formatNumber(Math.abs(value), 2)} kW`;
 }

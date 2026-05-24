@@ -9,6 +9,7 @@ import { getState, updateState } from '../state.js';
 import { calculateTotalProduction } from './formulas.js';
 import { BUILDINGS_BY_ID } from '../data/buildings.js';
 import { emit } from '../utils/eventBus.js';
+import { processAutoClickers } from './autoClicker.js';
 
 let running = false;
 let lastTime = 0;
@@ -59,6 +60,9 @@ function loop(timestamp) {
   if (!lastTime) lastTime = timestamp;
   const deltaMs = timestamp - lastTime;
   lastTime = timestamp;
+
+  // Procesar auto-clickers (cursors) con delta real del frame
+  processAutoClickers(deltaMs);
 
   // Acumulador para ticks fijos (opcional, ahora usamos delta directo)
   accumulator += deltaMs;

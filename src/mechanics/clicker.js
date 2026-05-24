@@ -7,6 +7,7 @@ import { calculateClickPower } from '../engine/formulas.js';
 import { emit } from '../utils/eventBus.js';
 import { spawnFloatingNumber, shakeElement } from '../ui/animations.js';
 import { spawnClickSparks } from '../ui/particles.js';
+import { playClickPop } from '../audio/audioEngine.js';
 
 /**
  * Procesa un clic en el reactor.
@@ -29,11 +30,12 @@ export function handleReactorClick(event) {
       totalClicks: newClicks,
     });
 
-    // Efectos visuales
+    // Efectos visuales y sonido
     const x = event.clientX ?? 0;
     const y = event.clientY ?? 0;
     spawnFloatingNumber(power, x, y, 'text-energy');
     spawnClickSparks(x, y, power);
+    playClickPop();
 
     const reactorImg = document.getElementById('reactor-image');
     if (reactorImg) shakeElement(reactorImg);

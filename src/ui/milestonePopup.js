@@ -1,32 +1,20 @@
 /**
- * Popups de milestones con GSAP.
- * Banners que entran desde abajo con animaciones fluidas.
+ * Milestone popups — Neo-brutalist v2. Sombra offset grande.
  */
 
 import gsap from 'gsap';
 
-/** @type {HTMLElement|null} */
 let container = null;
-
-/** Cola de milestones pendientes */
 const queue = [];
 let isShowing = false;
 
-/**
- * Inicializa el contenedor de popups.
- * @param {HTMLElement} parent
- */
 export function initMilestonePopup(parent) {
   container = document.createElement('div');
-  container.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] flex flex-col gap-2 pointer-events-none';
-  container.style.maxWidth = '400px';
+  container.className = 'fixed bottom-8 right-8 z-[300] flex flex-col gap-4 pointer-events-none';
+  container.style.maxWidth = '360px';
   parent.appendChild(container);
 }
 
-/**
- * Muestra un popup de milestone (o lo encola si hay otro activo).
- * @param {object} milestone
- */
 export function showMilestonePopup(milestone) {
   queue.push(milestone);
   if (!isShowing) {
@@ -49,60 +37,40 @@ function createPopup(milestone) {
   if (!container) return;
 
   const popup = document.createElement('div');
-  popup.className = `
-    pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl
-    bg-cosmic-800/90 backdrop-blur-md border border-energy/30
-    shadow-[0_0_20px_rgba(250,204,21,0.15)]
-  `;
-
-  // Icono
-  const icon = document.createElement('div');
-  icon.className = 'flex-shrink-0 w-10 h-10 rounded-lg bg-energy/20 flex items-center justify-center text-lg';
-  icon.textContent = '🏆';
-
-  // Info
-  const info = document.createElement('div');
-  info.className = 'flex-1 min-w-0';
+  popup.className = 'pointer-events-auto p-6 border-[3px] bg-[#f7f5f0] block-interactive';
+  popup.style.borderColor = '#0f0f0f';
+  popup.style.borderLeft = '6px solid #06b6d4';
+  popup.style.boxShadow = '6px 6px 0 0 #0f0f0f';
 
   const title = document.createElement('div');
-  title.className = 'font-pixel text-xs text-energy';
+  title.className = 'text-sm font-extrabold text-[#0f0f0f] uppercase tracking-wider';
   title.textContent = milestone.name;
 
   const desc = document.createElement('div');
-  desc.className = 'text-xs text-slate-300 mt-0.5';
+  desc.className = 'text-sm text-[#3a3a35] mt-2';
   desc.textContent = milestone.description;
 
   const reward = document.createElement('div');
-  reward.className = 'text-xs text-cyan-glow mt-1';
+  reward.className = 'text-base font-extrabold text-[#06b6d4] mt-3';
   if (milestone.reward.amount > 0) {
     reward.textContent = `+${milestone.reward.amount} ⚡`;
   }
 
-  info.appendChild(title);
-  info.appendChild(desc);
-  if (milestone.reward.amount > 0) info.appendChild(reward);
-
-  popup.appendChild(icon);
-  popup.appendChild(info);
+  popup.appendChild(title);
+  popup.appendChild(desc);
+  if (milestone.reward.amount > 0) popup.appendChild(reward);
 
   container.appendChild(popup);
 
-  // Animación de entrada con GSAP
   gsap.fromTo(popup,
-    { y: 50, opacity: 0, scale: 0.9 },
-    {
-      y: 0, opacity: 1, scale: 1,
-      duration: 0.5,
-      ease: 'back.out(1.4)',
-    }
+    { x: 60, opacity: 0 },
+    { x: 0, opacity: 1, duration: 0.4, ease: 'power2.out' }
   );
 
-  // Auto-destruir después de 4 segundos
   gsap.to(popup, {
-    y: -30,
+    x: -30,
     opacity: 0,
-    scale: 0.9,
-    duration: 0.4,
+    duration: 0.3,
     delay: 4,
     ease: 'power2.in',
     onComplete: () => {
@@ -111,11 +79,10 @@ function createPopup(milestone) {
     },
   });
 
-  // Permitir cerrar al clicar
   popup.addEventListener('click', () => {
     gsap.killTweensOf(popup);
     gsap.to(popup, {
-      y: -30, opacity: 0, scale: 0.9, duration: 0.3,
+      x: -30, opacity: 0, duration: 0.2,
       onComplete: () => {
         popup.remove();
         processQueue();
