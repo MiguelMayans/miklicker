@@ -143,6 +143,9 @@ export function initReactor(container) {
 
             <!-- Onda de choque al click -->
             <div id="plasma-shockwave" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 rounded-full pointer-events-none" style="border: 2px solid rgba(165,243,252,0.9); box-shadow: 0 0 20px rgba(165,243,252,0.5);"></div>
+
+            <!-- Moving highlight — reflejo de luz que viaja por el tubo (Starfield vibes) -->
+            <div id="plasma-highlight" class="absolute top-0 bottom-0 w-[60px] pointer-events-none" style="background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 40%, rgba(165,243,252,0.25) 50%, rgba(255,255,255,0.12) 60%, transparent 100%); left: -60px;"></div>
           </div>
         </div>
 
@@ -210,6 +213,7 @@ function startPlasmaIdle() {
   const core = document.getElementById('plasma-core');
   if (!core) return;
 
+  // Brillo central respirando
   plasmaTween = gsap.to(core, {
     opacity: 0.4,
     scale: 0.85,
@@ -218,6 +222,18 @@ function startPlasmaIdle() {
     yoyo: true,
     repeat: -1,
   });
+
+  // Moving highlight — reflejo de luz que viaja por el tubo (Starfield vibes)
+  const highlight = document.getElementById('plasma-highlight');
+  if (highlight) {
+    gsap.to(highlight, {
+      left: '100%',
+      duration: 3.5,
+      ease: 'none',
+      repeat: -1,
+      repeatDelay: 1.5,
+    });
+  }
 }
 
 function startPlasmaParticles() {

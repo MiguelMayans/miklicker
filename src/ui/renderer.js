@@ -41,6 +41,7 @@ export function initUI() {
   const app = document.getElementById('app');
   if (!app) return;
 
+  addOverlays();
   renderLayout();
   bindEvents();
   updateHeader();
@@ -56,6 +57,18 @@ export function initUI() {
   }, 1000);
 }
 
+function addOverlays() {
+  if (document.getElementById('scanlines-overlay')) return;
+
+  const scanlines = document.createElement('div');
+  scanlines.id = 'scanlines-overlay';
+  document.body.appendChild(scanlines);
+
+  const vignette = document.createElement('div');
+  vignette.id = 'vignette-overlay';
+  document.body.appendChild(vignette);
+}
+
 function renderLayout() {
   const app = document.getElementById('app');
   app.innerHTML = `
@@ -67,7 +80,7 @@ function renderLayout() {
           <div class="flex items-center gap-2">
             <div class="w-2.5 h-2.5 rounded-full bg-[#16a34a] animate-indicator"></div>
             <div>
-              <h1 class="text-lg font-extrabold tracking-tight text-black">SECC-01 // COLONIA ESTELAR</h1>
+              <h1 class="text-lg font-extrabold tracking-tight text-black font-space">SECC-01 // COLONIA ESTELAR</h1>
               <p class="text-xs font-bold text-[#777777] uppercase tracking-[0.15em]">Puesto de Mando — Unidad de Potencia</p>
             </div>
           </div>
@@ -78,7 +91,7 @@ function renderLayout() {
         </header>
 
         <!-- MAIN: REACTOR + ENERGY (panel prominente) -->
-        <div id="main-panel" class="shrink-0 bg-[#e0ddd6] border-[3px] border-black flex items-stretch min-h-[140px]">
+        <div id="main-panel" class="shrink-0 bg-[#e0ddd6] border-[3px] border-black flex items-stretch min-h-[140px] hud-bracket hud-bracket-inv panel-glow">
           <!-- LEFT: REACTOR ZONE -->
           <div id="reactor-zone" class="flex-[70] flex flex-col p-3 min-w-0 cursor-pointer">
             <div id="reactor-root" class="flex-1 min-h-0"></div>
