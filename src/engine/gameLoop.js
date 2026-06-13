@@ -4,12 +4,14 @@
  * Protege contra tab inactivo: al volver, calcula el tiempo perdido.
  */
 
-import { TICK_RATE } from '../config.js';
-import { getState, updateState } from '../state.js';
-import { calculateTotalProduction } from './formulas.js';
-import { BUILDINGS_BY_ID } from '../data/buildings.js';
-import { emit } from '../utils/eventBus.js';
-import { processAutoClickers } from './autoClicker.js';
+import { TICK_RATE } from "../config.js";
+import { getState, updateState } from "../state.js";
+import { calculateTotalProduction } from "./formulas.js";
+import { BUILDINGS_BY_ID } from "../data/buildings.js";
+import { emit } from "../utils/eventBus.js";
+import { processAutoClickers } from "./autoClicker.js";
+
+const MAX_DELTA = 200; // ms — protege contra lag spikes / pestañas inactivas
 
 let running = false;
 let lastTime = 0;
@@ -43,11 +45,15 @@ function tick(deltaMs) {
 
   // Emitir ingreso pasivo cada segundo aproximadamente para el feedback visual
   if (passiveAccumulator >= 1 || deltaMs >= 900) {
-    emit('passiveIncome', { amount: passiveAccumulator });
+    emit("passiveIncome", { amount: passiveAccumulator });
     passiveAccumulator = 0;
   }
 
-  emit('stateUpdated', { energy: newEnergy, totalEnergyEarned: newTotal, productionPerSecond });
+  emit("stateUpdated", {
+    energy: newEnergy,
+    totalEnergyEarned: newTotal,
+    productionPerSecond,
+  });
 }
 
 /**
@@ -58,7 +64,7 @@ function loop(timestamp) {
   if (!running) return;
 
   if (!lastTime) lastTime = timestamp;
-  const deltaMs = timestamp - lastTime;
+  const deltaMs = Math.min(timestamp - lastTime, MAX_DELTA);
   lastTime = timestamp;
 
   // Procesar auto-clickers (cursors) con delta real del frame
@@ -77,7 +83,7 @@ function loop(timestamp) {
   if (deltaMs > 0) {
     // El tick parcial no acumula recursos para evitar duplicados,
     // solo actualizamos la UI con el delta restante para animaciones.
-    emit('renderFrame', { deltaMs, accumulator });
+    emit("renderFrame", { deltaMs, accumulator });
   }
 
   animationFrameId = requestAnimationFrame(loop);
@@ -134,7 +140,10 @@ export function processOfflineTime() {
 
   if (offlineMs > 1000) {
     // Solo procesar si han pasado más de 1 segundo
-    const productionPerSecond = calculateTotalProduction(state, BUILDINGS_BY_ID);
+    const productionPerSecond = calculateTotalProduction(
+      state,
+      BUILDINGS_BY_ID,
+    );
     if (productionPerSecond > 0) {
       const earned = productionPerSecond * (offlineMs / 1000);
       const newEnergy = state.energy + earned;
@@ -146,8 +155,12 @@ export function processOfflineTime() {
         lastTick: now,
       });
 
-      emit('offlineProgress', { earned, offlineSeconds: offlineMs / 1000 });
-      emit('stateUpdated', { energy: newEnergy, totalEnergyEarned: newTotal, productionPerSecond });
+      emit("offlineProgress", { earned, offlineSeconds: offlineMs / 1000 });
+      emit("stateUpdated", {
+        energy: newEnergy,
+        totalEnergyEarned: newTotal,
+        productionPerSecond,
+      });
     }
   }
 }

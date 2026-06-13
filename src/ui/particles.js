@@ -3,7 +3,7 @@
  * Canvas overlay separado del fondo para no mezclar.
  */
 
-import gsap from 'gsap';
+import gsap from "gsap";
 
 /** @type {HTMLCanvasElement|null} */
 let canvas = null;
@@ -17,6 +17,8 @@ let height = 0;
 /** @type {Array<{x:number, y:number, vx:number, vy:number, size:number, color:string, life:number, maxLife:number}>} */
 let particles = [];
 
+const MAX_PARTICLES = 300;
+
 let animationId = null;
 
 /**
@@ -26,21 +28,21 @@ let animationId = null;
 export function initParticles(container) {
   if (canvas) return;
 
-  canvas = document.createElement('canvas');
-  canvas.style.position = 'fixed';
-  canvas.style.top = '0';
-  canvas.style.left = '0';
-  canvas.style.width = '100%';
-  canvas.style.height = '100%';
-  canvas.style.zIndex = '9999';
-  canvas.style.pointerEvents = 'none';
+  canvas = document.createElement("canvas");
+  canvas.style.position = "fixed";
+  canvas.style.top = "0";
+  canvas.style.left = "0";
+  canvas.style.width = "100%";
+  canvas.style.height = "100%";
+  canvas.style.zIndex = "9999";
+  canvas.style.pointerEvents = "none";
 
   container.appendChild(canvas);
 
-  ctx = canvas.getContext('2d');
+  ctx = canvas.getContext("2d");
 
   resize();
-  window.addEventListener('resize', resize);
+  window.addEventListener("resize", resize);
 
   startLoop();
 }
@@ -64,6 +66,9 @@ function resize() {
  */
 export function spawnClickSparks(x, y, amount) {
   const count = Math.min(12, 6 + Math.floor(amount / 5));
+  if (particles.length + count > MAX_PARTICLES) {
+    particles.splice(0, particles.length + count - MAX_PARTICLES);
+  }
   for (let i = 0; i < count; i++) {
     const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.5;
     const speed = 1.5 + Math.random() * 2.5;
@@ -73,7 +78,7 @@ export function spawnClickSparks(x, y, amount) {
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed - 1, // ligera tendencia hacia arriba
       size: 2 + Math.random() * 2,
-      color: Math.random() > 0.5 ? '#facc15' : '#22d3ee', // amarillo o cyan
+      color: Math.random() > 0.5 ? "#facc15" : "#22d3ee", // amarillo o cyan
       life: 1,
       maxLife: 0.8 + Math.random() * 0.4,
     });
@@ -87,6 +92,9 @@ export function spawnClickSparks(x, y, amount) {
  * @param {string} color - Color hex del edificio.
  */
 export function spawnPurchaseRain(x, y, color) {
+  if (particles.length + 18 > MAX_PARTICLES) {
+    particles.splice(0, particles.length + 18 - MAX_PARTICLES);
+  }
   for (let i = 0; i < 18; i++) {
     particles.push({
       x: x + (Math.random() - 0.5) * 60,
@@ -107,6 +115,9 @@ export function spawnPurchaseRain(x, y, color) {
  * @param {number} y
  */
 export function spawnUnlockConfetti(x, y) {
+  if (particles.length + 24 > MAX_PARTICLES) {
+    particles.splice(0, particles.length + 24 - MAX_PARTICLES);
+  }
   for (let i = 0; i < 24; i++) {
     const angle = Math.random() * Math.PI * 2;
     const speed = 1 + Math.random() * 3;
@@ -116,7 +127,7 @@ export function spawnUnlockConfetti(x, y) {
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       size: 2 + Math.random() * 3,
-      color: '#facc15',
+      color: "#facc15",
       life: 1,
       maxLife: 1.0 + Math.random() * 0.5,
     });

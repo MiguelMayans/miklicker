@@ -5,21 +5,36 @@
  * ENERGÍA como display principal grande.
  */
 
-import { getState, updateState } from '../state.js';
-import { calculateTotalProduction, calculateRawProduction, calculateClickPower, calculateCoreTemp, isOverheated } from '../engine/formulas.js';
-import { BUILDINGS_BY_ID } from '../data/buildings.js';
-import { formatNumber } from '../utils/numbers.js';
-import { on } from '../utils/eventBus.js';
-import { handleReactorClick } from '../mechanics/clicker.js';
-import { initAutoClickers } from '../engine/autoClicker.js';
-import { calculatePrestigeGain, calculatePrestigeMultiplier, doPrestige } from '../engine/prestige.js';
-import { initShop, refreshShopAffordability, setBuyQuantity } from './shop.js';
-import { UPGRADES, UPGRADES_BY_ID } from '../data/upgrades.js';
-import { initUpgrades, refreshUpgrades } from './upgrades.js';
-import { initLog, addRandomLog } from './log.js';
-import { checkMilestones } from '../engine/milestones.js';
-import { logOverheating, resetIdleTimer } from '../engine/commander.js';
-import { playAutoClickPop, playPurchaseDing } from '../audio/audioEngine.js';
+import { getState, updateState } from "../state.js";
+import {
+  calculateTotalProduction,
+  calculateRawProduction,
+  calculateClickPower,
+  calculateCoreTemp,
+  isOverheated,
+} from "../engine/formulas.js";
+import { BUILDINGS_BY_ID } from "../data/buildings.js";
+import { formatNumber } from "../utils/numbers.js";
+import { on } from "../utils/eventBus.js";
+import { handleReactorClick } from "../mechanics/clicker.js";
+import { initAutoClickers } from "../engine/autoClicker.js";
+import {
+  calculatePrestigeGain,
+  calculatePrestigeMultiplier,
+  doPrestige,
+} from "../engine/prestige.js";
+import { initShop, refreshShopAffordability, setBuyQuantity } from "./shop.js";
+import { UPGRADES, UPGRADES_BY_ID } from "../data/upgrades.js";
+import { initUpgrades, refreshUpgrades } from "./upgrades.js";
+import { initLog, addRandomLog } from "./log.js";
+import { checkMilestones } from "../engine/milestones.js";
+import { logOverheating, resetIdleTimer } from "../engine/commander.js";
+import {
+  playAutoClickPop,
+  playPurchaseDing,
+  toggleMute,
+  getMuteState,
+} from "../audio/audioEngine.js";
 import {
   initReactor,
   triggerReactorClick,
@@ -27,7 +42,7 @@ import {
   updateReactorPressure,
   updateReactorTemperature,
   updateReactorLEDs,
-} from './reactor.js';
+} from "./reactor.js";
 
 let energyDisplay = null;
 let rateDisplay = null;
@@ -38,7 +53,7 @@ let lastHeaderUpdate = 0;
 let telemetryInterval = null;
 
 export function initUI() {
-  const app = document.getElementById('app');
+  const app = document.getElementById("app");
   if (!app) return;
 
   addOverlays();
@@ -48,7 +63,7 @@ export function initUI() {
   updateTelemetry();
   updatePrestigeDisplay();
 
-  addRandomLog('first_click', {}, 'info');
+  addRandomLog("first_click", {}, "info");
 
   // Intervalo propio para telemetría (1s) — uptime, temp, eff, o2 fluctúan en vivo
   if (telemetryInterval) clearInterval(telemetryInterval);
@@ -58,19 +73,19 @@ export function initUI() {
 }
 
 function addOverlays() {
-  if (document.getElementById('scanlines-overlay')) return;
+  if (document.getElementById("scanlines-overlay")) return;
 
-  const scanlines = document.createElement('div');
-  scanlines.id = 'scanlines-overlay';
+  const scanlines = document.createElement("div");
+  scanlines.id = "scanlines-overlay";
   document.body.appendChild(scanlines);
 
-  const vignette = document.createElement('div');
-  vignette.id = 'vignette-overlay';
+  const vignette = document.createElement("div");
+  vignette.id = "vignette-overlay";
   document.body.appendChild(vignette);
 }
 
 function renderLayout() {
-  const app = document.getElementById('app');
+  const app = document.getElementById("app");
   app.innerHTML = `
     <div class="h-screen w-full overflow-hidden flex flex-col p-2 lg:p-3 bg-[#1c1917]">
       <div class="flex-1 flex flex-col max-w-[1280px] mx-auto w-full gap-2">
@@ -85,6 +100,7 @@ function renderLayout() {
             </div>
           </div>
           <div class="flex items-center gap-2">
+            <button id="mute-btn" class="text-xs font-extrabold text-[#444444] hover:text-black uppercase tracking-wider px-4 py-2 border-[3px] border-black bg-[#e0ddd6] hover:bg-[#d4d0c8] block-interactive" title="Silenciar/Activar sonido">🔊</button>
             <button id="export-btn" class="text-xs font-extrabold text-[#444444] hover:text-black uppercase tracking-wider px-4 py-2 border-[3px] border-black bg-[#e0ddd6] hover:bg-[#d4d0c8] block-interactive">Exportar</button>
             <button id="reset-btn" class="text-xs font-extrabold text-[#dc2626] hover:text-white uppercase tracking-wider px-4 py-2 border-[3px] border-[#dc2626] bg-[#e0ddd6] hover:bg-[#dc2626] block-interactive">Reiniciar</button>
           </div>
@@ -229,26 +245,26 @@ function renderLayout() {
     </div>
   `;
 
-  const shopContainer = document.getElementById('shop-container');
+  const shopContainer = document.getElementById("shop-container");
   if (shopContainer) initShop(shopContainer);
 
-  const upgradesContainer = document.getElementById('upgrades-container');
+  const upgradesContainer = document.getElementById("upgrades-container");
   if (upgradesContainer) initUpgrades(upgradesContainer);
 
-  const logContainer = document.getElementById('log-container');
+  const logContainer = document.getElementById("log-container");
   if (logContainer) initLog(logContainer);
 
-  const reactorRoot = document.getElementById('reactor-root');
+  const reactorRoot = document.getElementById("reactor-root");
   if (reactorRoot) initReactor(reactorRoot);
 
-  energyDisplay = document.getElementById('energy-display');
-  rateDisplay = document.getElementById('rate-display');
+  energyDisplay = document.getElementById("energy-display");
+  rateDisplay = document.getElementById("rate-display");
 }
 
 function bindEvents() {
-  const reactor = document.getElementById('reactor-zone');
+  const reactor = document.getElementById("reactor-zone");
   if (reactor) {
-    reactor.addEventListener('click', (e) => {
+    reactor.addEventListener("click", (e) => {
       triggerReactorClick();
       handleReactorClick(e);
       resetIdleTimer();
@@ -259,64 +275,94 @@ function bindEvents() {
 
   // Bulk buy quantity selector
   const qtyBtns = {
-    1: document.getElementById('buy-qty-1'),
-    10: document.getElementById('buy-qty-10'),
-    100: document.getElementById('buy-qty-100'),
-    max: document.getElementById('buy-qty-max'),
+    1: document.getElementById("buy-qty-1"),
+    10: document.getElementById("buy-qty-10"),
+    100: document.getElementById("buy-qty-100"),
+    max: document.getElementById("buy-qty-max"),
   };
 
   function setQtyBtnActive(activeKey) {
     for (const [key, btn] of Object.entries(qtyBtns)) {
       if (!btn) continue;
       if (key === activeKey) {
-        btn.className = 'flex-1 text-[9px] font-extrabold text-black py-1 border-[2px] border-black bg-white block-interactive';
+        btn.className =
+          "flex-1 text-[9px] font-extrabold text-black py-1 border-[2px] border-black bg-white block-interactive";
       } else {
-        btn.className = 'flex-1 text-[9px] font-extrabold text-[#777777] py-1 border-[2px] border-[#a09c94] bg-[#e0ddd6] block-interactive';
+        btn.className =
+          "flex-1 text-[9px] font-extrabold text-[#777777] py-1 border-[2px] border-[#a09c94] bg-[#e0ddd6] block-interactive";
       }
     }
   }
 
-  if (qtyBtns[1]) qtyBtns[1].addEventListener('click', () => { setBuyQuantity(1); setQtyBtnActive('1'); });
-  if (qtyBtns[10]) qtyBtns[10].addEventListener('click', () => { setBuyQuantity(10); setQtyBtnActive('10'); });
-  if (qtyBtns[100]) qtyBtns[100].addEventListener('click', () => { setBuyQuantity(100); setQtyBtnActive('100'); });
-  if (qtyBtns.max) qtyBtns.max.addEventListener('click', () => { setBuyQuantity(-1); setQtyBtnActive('max'); });
+  if (qtyBtns[1])
+    qtyBtns[1].addEventListener("click", () => {
+      setBuyQuantity(1);
+      setQtyBtnActive("1");
+    });
+  if (qtyBtns[10])
+    qtyBtns[10].addEventListener("click", () => {
+      setBuyQuantity(10);
+      setQtyBtnActive("10");
+    });
+  if (qtyBtns[100])
+    qtyBtns[100].addEventListener("click", () => {
+      setBuyQuantity(100);
+      setQtyBtnActive("100");
+    });
+  if (qtyBtns.max)
+    qtyBtns.max.addEventListener("click", () => {
+      setBuyQuantity(-1);
+      setQtyBtnActive("max");
+    });
 
-  on('stateUpdated', () => {
+  on("stateUpdated", () => {
     throttledUpdateHeader();
   });
 
-  on('buildingPurchased', ({ id }) => {
+  on("buildingPurchased", ({ id }) => {
     updateShopCount();
     updateBuildingsCount();
     checkMilestones();
-    if (id === 'cursor') {
+    if (id === "cursor") {
       initAutoClickers();
     }
   });
 
-  on('autoClickFired', () => {
+  on("autoClickFired", () => {
     triggerAutoClickPulse();
     playAutoClickPop();
   });
 
-  on('upgradePurchased', () => {
+  on("upgradePurchased", () => {
     checkMilestones();
   });
 
-  const exportBtn = document.getElementById('export-btn');
+  const exportBtn = document.getElementById("export-btn");
   if (exportBtn) {
-    exportBtn.addEventListener('click', async () => {
-      const { exportSave } = await import('../engine/saveLoad.js');
+    exportBtn.addEventListener("click", async () => {
+      const { exportSave } = await import("../engine/saveLoad.js");
       exportSave();
     });
   }
 
-  const resetBtn = document.getElementById('reset-btn');
+  const muteBtn = document.getElementById("mute-btn");
+  if (muteBtn) {
+    muteBtn.addEventListener("click", () => {
+      const muted = toggleMute();
+      muteBtn.textContent = muted ? "🔇" : "🔊";
+      muteBtn.title = muted ? "Activar sonido" : "Silenciar sonido";
+    });
+    // Estado inicial
+    muteBtn.textContent = getMuteState() ? "🔇" : "🔊";
+    muteBtn.title = getMuteState() ? "Activar sonido" : "Silenciar sonido";
+  }
+
+  const resetBtn = document.getElementById("reset-btn");
   if (resetBtn) {
-    resetBtn.addEventListener('click', async () => {
-      if (confirm('¿Borrar partida y empezar de nuevo?')) {
-        const { clearSave } = await import('../engine/saveLoad.js');
-        const { setState, createInitialState } = await import('../state.js');
+    resetBtn.addEventListener("click", async () => {
+      if (confirm("¿Borrar partida y empezar de nuevo?")) {
+        const { clearSave } = await import("../engine/saveLoad.js");
+        const { setState, createInitialState } = await import("../state.js");
         clearSave();
         setState(createInitialState());
         window.location.reload();
@@ -324,20 +370,24 @@ function bindEvents() {
     });
   }
 
-  const prestigeBtn = document.getElementById('prestige-btn');
+  const prestigeBtn = document.getElementById("prestige-btn");
   if (prestigeBtn) {
-    prestigeBtn.addEventListener('click', () => {
+    prestigeBtn.addEventListener("click", () => {
       const state = getState();
       const gain = calculatePrestigeGain(state);
-      const newMultiplier = calculatePrestigeMultiplier(state.prestige.cosmicData + gain);
+      const newMultiplier = calculatePrestigeMultiplier(
+        state.prestige.cosmicData + gain,
+      );
       if (gain <= 0) return;
-      if (confirm(
-        `RESET CÓSMICO\n\n` +
-        `Datos a ganar: +${gain}\n` +
-        `Total tras reset: ${state.prestige.cosmicData + gain}\n` +
-        `Multiplicador pasará de ×${formatNumber(state.prestige.multiplier, 2)} a ×${formatNumber(newMultiplier, 2)}\n\n` +
-        `⚠ Todo el progreso actual se perderá. Los Datos Cósmicos y su multiplicador son permanentes.`
-      )) {
+      if (
+        confirm(
+          `RESET CÓSMICO\n\n` +
+            `Datos a ganar: +${gain}\n` +
+            `Total tras reset: ${state.prestige.cosmicData + gain}\n` +
+            `Multiplicador pasará de ×${formatNumber(state.prestige.multiplier, 2)} a ×${formatNumber(newMultiplier, 2)}\n\n` +
+            `⚠ Todo el progreso actual se perderá. Los Datos Cósmicos y su multiplicador son permanentes.`,
+        )
+      ) {
         if (doPrestige()) {
           window.location.reload();
         }
@@ -373,17 +423,21 @@ function updateHeader() {
     rateDisplay.textContent = formatNumber(production, 2);
   }
 
-  const clickPowerEl = document.getElementById('click-power-display');
-  if (clickPowerEl) clickPowerEl.textContent = `${formatNumber(clickPower, 2)} kWh`;
+  const clickPowerEl = document.getElementById("click-power-display");
+  if (clickPowerEl)
+    clickPowerEl.textContent = `${formatNumber(clickPower, 2)} kWh`;
 
   updateReactorPressure(state.energy);
 }
 
 function updateBuildingsCount() {
-  const el = document.getElementById('buildings-count');
+  const el = document.getElementById("buildings-count");
   if (!el) return;
   const state = getState();
-  const total = Object.values(state.buildings).reduce((sum, count) => sum + (count ?? 0), 0);
+  const total = Object.values(state.buildings).reduce(
+    (sum, count) => sum + (count ?? 0),
+    0,
+  );
   el.textContent = String(total);
 }
 
@@ -397,22 +451,26 @@ function updateTelemetry() {
   const state = getState();
   const rawProduction = calculateRawProduction(state, BUILDINGS_BY_ID);
   const production = calculateTotalProduction(state, BUILDINGS_BY_ID);
-  const buildingsCount = Object.values(state.buildings).reduce((sum, c) => sum + (c ?? 0), 0);
+  const buildingsCount = Object.values(state.buildings).reduce(
+    (sum, c) => sum + (c ?? 0),
+    0,
+  );
 
   // Ruido térmico: oscilación senoidal suave + micro-ruido aleatorio
   const t = Date.now() / 1000;
-  const thermalNoise = Math.sin(t * 2.7) * 12 + Math.sin(t * 7.3) * 5 + (Math.random() - 0.5) * 8;
+  const thermalNoise =
+    Math.sin(t * 2.7) * 12 + Math.sin(t * 7.3) * 5 + (Math.random() - 0.5) * 8;
   const effNoise = Math.sin(t * 1.3) * 0.8 + (Math.random() - 0.5) * 0.6;
   const o2Noise = Math.sin(t * 0.5) * 0.4 + (Math.random() - 0.5) * 0.3;
 
   // Temperatura del núcleo: base coherente con formulas.js + fluctuación
-  const tempEl = document.getElementById('telemetry-temp');
+  const tempEl = document.getElementById("telemetry-temp");
   let temp = 300;
   if (tempEl) {
     const baseTemp = calculateCoreTemp(rawProduction);
     temp = Math.max(250, baseTemp + thermalNoise);
     tempEl.textContent = `${temp.toFixed(0)} K`;
-    tempEl.className = `text-sm font-extrabold tabular-nums ${temp > 4000 ? 'text-[#dc2626]' : temp > 2000 ? 'text-[#f59e0b]' : temp > 1000 ? 'text-[#d97706]' : 'text-black'}`;
+    tempEl.className = `text-sm font-extrabold tabular-nums ${temp > 4000 ? "text-[#dc2626]" : temp > 2000 ? "text-[#f59e0b]" : temp > 1000 ? "text-[#d97706]" : "text-black"}`;
   }
 
   // Estado de sobrecalentamiento con histéresis
@@ -421,7 +479,7 @@ function updateTelemetry() {
     updateState({ overheated });
     if (overheated) {
       logOverheating();
-      emit('overheating', { temp });
+      emit("overheating", { temp });
     }
   }
 
@@ -429,59 +487,64 @@ function updateTelemetry() {
   const heatRatio = (temp - 300) / 4000;
   updateReactorTemperature(heatRatio);
   if (overheated) {
-    updateReactorLEDs('critical');
+    updateReactorLEDs("critical");
   } else if (temp > 3000) {
-    updateReactorLEDs('warning');
+    updateReactorLEDs("warning");
   } else {
-    updateReactorLEDs('stable');
+    updateReactorLEDs("stable");
   }
 
   // Panel principal: borde rojo cuando está sobrecalentado
-  const mainPanel = document.getElementById('main-panel');
+  const mainPanel = document.getElementById("main-panel");
   if (mainPanel) {
     if (overheated) {
-      mainPanel.classList.add('border-[#dc2626]');
-      mainPanel.classList.remove('border-black');
+      mainPanel.classList.add("border-[#dc2626]");
+      mainPanel.classList.remove("border-black");
     } else {
-      mainPanel.classList.add('border-black');
-      mainPanel.classList.remove('border-[#dc2626]');
+      mainPanel.classList.add("border-black");
+      mainPanel.classList.remove("border-[#dc2626]");
     }
   }
 
   // Eficiencia: 42% base + mejora con edificios y upgrades + fluctuación
-  const effEl = document.getElementById('telemetry-efficiency');
+  const effEl = document.getElementById("telemetry-efficiency");
   if (effEl) {
     const baseEff = 42;
-    const bonus = Math.min(buildingsCount * 0.5 + state.upgrades.length * 2, 55);
+    const bonus = Math.min(
+      buildingsCount * 0.5 + state.upgrades.length * 2,
+      55,
+    );
     const eff = Math.max(20, Math.min(97, baseEff + bonus + effNoise));
     effEl.textContent = `${eff.toFixed(1)}%`;
-    effEl.className = `text-sm font-extrabold tabular-nums ${eff > 85 ? 'text-[#16a34a]' : eff > 60 ? 'text-black' : 'text-[#dc2626]'}`;
+    effEl.className = `text-sm font-extrabold tabular-nums ${eff > 85 ? "text-[#16a34a]" : eff > 60 ? "text-black" : "text-[#dc2626]"}`;
   }
 
   // Uptime: tiempo desde gameStartedAt
-  const upEl = document.getElementById('telemetry-uptime');
+  const upEl = document.getElementById("telemetry-uptime");
   if (upEl) {
-    const elapsed = Math.floor((Date.now() - (state.gameStartedAt ?? Date.now())) / 1000);
-    const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
-    const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
-    const s = String(elapsed % 60).padStart(2, '0');
+    const elapsed = Math.floor(
+      (Date.now() - (state.gameStartedAt ?? Date.now())) / 1000,
+    );
+    const h = String(Math.floor(elapsed / 3600)).padStart(2, "0");
+    const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, "0");
+    const s = String(elapsed % 60).padStart(2, "0");
     upEl.textContent = `${h}:${m}:${s}`;
   }
 
   // Tripulación: base 5 + 1 por cada 10 edificios (estática, no fluctúa)
-  const crewEl = document.getElementById('telemetry-crew');
+  const crewEl = document.getElementById("telemetry-crew");
   if (crewEl) {
     const crew = 5 + Math.floor(buildingsCount / 10);
     crewEl.textContent = String(crew);
   }
 
   // Oxígeno: 100% - degradación por edificios + fluctuación
-  const o2El = document.getElementById('telemetry-o2');
+  const o2El = document.getElementById("telemetry-o2");
   if (o2El) {
     const baseO2 = Math.max(15, 100 - buildingsCount * 0.3);
     const o2 = Math.max(14, Math.min(100, baseO2 + o2Noise));
     o2El.textContent = `${o2.toFixed(1)}%`;
-    o2El.className = `text-sm font-extrabold tabular-nums ${o2 > 60 ? 'text-[#16a34a]' : o2 > 30 ? 'text-[#f59e0b]' : 'text-[#dc2626]'}`;
+    o2El.className = `text-sm font-extrabold tabular-nums ${o2 > 60 ? "text-[#16a34a]" : o2 > 30 ? "text-[#f59e0b]" : "text-[#dc2626]"}`;
   }
 }
 
@@ -492,23 +555,28 @@ function updatePrestigeDisplay() {
   const state = getState();
   const gain = calculatePrestigeGain(state);
 
-  const dataEl = document.getElementById('prestige-data');
+  const dataEl = document.getElementById("prestige-data");
   if (dataEl) dataEl.textContent = String(state.prestige.cosmicData ?? 0);
 
-  const multEl = document.getElementById('prestige-multiplier');
-  if (multEl) multEl.textContent = `×${formatNumber(state.prestige.multiplier ?? 1, 2)}`;
+  const multEl = document.getElementById("prestige-multiplier");
+  if (multEl)
+    multEl.textContent = `×${formatNumber(state.prestige.multiplier ?? 1, 2)}`;
 
-  const gainEl = document.getElementById('prestige-gain');
-  if (gainEl) gainEl.textContent = gain > 0 ? `+${gain} al resetear` : 'Acumula 1M kWh para resetear';
+  const gainEl = document.getElementById("prestige-gain");
+  if (gainEl)
+    gainEl.textContent =
+      gain > 0 ? `+${gain} al resetear` : "Acumula 1M kWh para resetear";
 
-  const btn = document.getElementById('prestige-btn');
+  const btn = document.getElementById("prestige-btn");
   if (btn) {
     if (gain > 0) {
       btn.disabled = false;
-      btn.className = 'text-[10px] font-extrabold text-black uppercase tracking-wider px-3 py-1.5 border-[3px] border-black bg-[#06b6d4] hover:bg-[#0891b2] block-interactive';
+      btn.className =
+        "text-[10px] font-extrabold text-black uppercase tracking-wider px-3 py-1.5 border-[3px] border-black bg-[#06b6d4] hover:bg-[#0891b2] block-interactive";
     } else {
       btn.disabled = true;
-      btn.className = 'text-[10px] font-extrabold text-[#444444] uppercase tracking-wider px-3 py-1.5 border-[3px] border-[#a09c94] bg-[#d4d0c8] opacity-50 cursor-not-allowed';
+      btn.className =
+        "text-[10px] font-extrabold text-[#444444] uppercase tracking-wider px-3 py-1.5 border-[3px] border-[#a09c94] bg-[#d4d0c8] opacity-50 cursor-not-allowed";
     }
   }
 }
@@ -517,8 +585,9 @@ let activeUpgradeTooltip = null;
 
 function getActiveUpgradeTooltip() {
   if (!activeUpgradeTooltip) {
-    activeUpgradeTooltip = document.createElement('div');
-    activeUpgradeTooltip.className = 'fixed z-[9999] hidden pointer-events-none';
+    activeUpgradeTooltip = document.createElement("div");
+    activeUpgradeTooltip.className =
+      "fixed z-[9999] hidden pointer-events-none";
     activeUpgradeTooltip.style.cssText = `
       background: #111111;
       border: 3px solid #06b6d4;
@@ -543,18 +612,19 @@ function getActiveUpgradeTooltip() {
  * Cada chip tiene un tooltip neobrutalista flotante con su descripción.
  */
 function updateActiveUpgradesBar() {
-  const container = document.getElementById('active-upgrades-bar');
+  const container = document.getElementById("active-upgrades-bar");
   if (!container) return;
 
   const state = getState();
   const active = state.upgrades ?? [];
 
   if (active.length === 0) {
-    container.innerHTML = '<span class="text-[10px] text-[#a09c94]">Ninguno</span>';
+    container.innerHTML =
+      '<span class="text-[10px] text-[#a09c94]">Ninguno</span>';
     return;
   }
 
-  container.innerHTML = '';
+  container.innerHTML = "";
   const fragment = document.createDocumentFragment();
   const tooltip = getActiveUpgradeTooltip();
 
@@ -562,22 +632,23 @@ function updateActiveUpgradesBar() {
     const upgrade = UPGRADES_BY_ID.get(id);
     if (!upgrade) continue;
 
-    const chip = document.createElement('span');
-    chip.className = 'text-[9px] font-bold text-black px-1.5 py-0.5 border-[2px] border-black bg-[#06b6d4] whitespace-nowrap';
+    const chip = document.createElement("span");
+    chip.className =
+      "text-[9px] font-bold text-black px-1.5 py-0.5 border-[2px] border-black bg-[#06b6d4] whitespace-nowrap";
     chip.textContent = upgrade.name;
 
-    chip.addEventListener('mouseenter', (e) => {
+    chip.addEventListener("mouseenter", (e) => {
       tooltip.textContent = upgrade.description;
-      tooltip.classList.remove('hidden');
+      tooltip.classList.remove("hidden");
       positionTooltip(e, tooltip);
     });
 
-    chip.addEventListener('mousemove', (e) => {
+    chip.addEventListener("mousemove", (e) => {
       positionTooltip(e, tooltip);
     });
 
-    chip.addEventListener('mouseleave', () => {
-      tooltip.classList.add('hidden');
+    chip.addEventListener("mouseleave", () => {
+      tooltip.classList.add("hidden");
     });
 
     fragment.appendChild(chip);

@@ -3,10 +3,10 @@
  * Comprueba condiciones y dispara recompensas + popups.
  */
 
-import { getState, updateState } from '../state.js';
-import { MILESTONES } from '../data/milestones.js';
-import { emit } from '../utils/eventBus.js';
-import { showMilestonePopup } from '../ui/milestonePopup.js';
+import { getState, updateState } from "../state.js";
+import { MILESTONES } from "../data/milestones.js";
+import { emit } from "../utils/eventBus.js";
+import { showMilestonePopup } from "../ui/milestonePopup.js";
 
 /** Set de milestones ya completados en esta sesión (para no repetir) */
 const completedThisSession = new Set();
@@ -38,15 +38,18 @@ function isMilestoneComplete(milestone, state) {
   const { condition } = milestone;
 
   switch (condition.type) {
-    case 'totalClicks':
+    case "totalClicks":
       return state.totalClicks >= condition.value;
-    case 'totalBuildings': {
-      const total = Object.values(state.buildings).reduce((sum, c) => sum + (c ?? 0), 0);
+    case "totalBuildings": {
+      const total = Object.values(state.buildings).reduce(
+        (sum, c) => sum + (c ?? 0),
+        0,
+      );
       return total >= condition.value;
     }
-    case 'totalEnergyEarned':
+    case "totalEnergyEarned":
       return state.totalEnergyEarned >= condition.value;
-    case 'buildingOwned':
+    case "buildingOwned":
       return (state.buildings[condition.building] ?? 0) >= condition.value;
     default:
       return false;
@@ -61,25 +64,23 @@ function isMilestoneComplete(milestone, state) {
 function completeMilestone(milestone, state) {
   completedThisSession.add(milestone.id);
 
-  // Aplicar recompensa
-  let newEnergy = state.energy;
-  if (milestone.reward.type === 'energy' && milestone.reward.amount > 0) {
-    newEnergy += milestone.reward.amount;
-  }
-
+  // Aplicar recompensa de forma segura
+  const rewardAmount =
+    (milestone.reward?.type === "energy" ? milestone.reward?.amount : 0) ?? 0;
+  const newEnergy = state.energy + rewardAmount;
+  const newTotalEnergyEarned = state.totalEnergyEarned + rewardAmount;
   const newMilestones = [...(state.milestones ?? []), milestone.id];
 
   updateState({
-    ...state,
     energy: newEnergy,
     milestones: newMilestones,
-    totalEnergyEarned: state.totalEnergyEarned + (milestone.reward.amount || 0),
+    totalEnergyEarned: newTotalEnergyEarned,
   });
 
   // Mostrar popup
   showMilestonePopup(milestone);
 
   // Emitir eventos
-  emit('milestoneCompleted', { id: milestone.id, name: milestone.name });
-  emit('stateUpdated', { energy: newEnergy, milestones: newMilestones });
+  emit("milestoneCompleted", { id: milestone.id, name: milestone.name });
+  emit("stateUpdated", { energy: newEnergy, milestones: newMilestones });
 }

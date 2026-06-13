@@ -5,13 +5,18 @@
  * Timers locales (no persistidos); se reconstruyen al iniciar.
  */
 
-import { getState, updateState } from '../state.js';
-import { calculateAutoClickPower, calculateAutoClickInterval } from './formulas.js';
-import { emit } from '../utils/eventBus.js';
+import { getState, updateState } from "../state.js";
+import {
+  calculateAutoClickPower,
+  calculateAutoClickInterval,
+} from "./formulas.js";
+import { emit } from "../utils/eventBus.js";
 
 /** @type {number[]} ms restantes para cada cursor */
 let timers = [];
 let initialized = false;
+
+const MAX_CLICKS_PER_FRAME = 10; // evita freezes en lag spikes
 
 /**
  * Inicializa/reconstruye los timers a partir del estado actual.
@@ -57,14 +62,16 @@ export function processAutoClickers(deltaMs) {
   for (let i = 0; i < timers.length; i++) {
     timers[i] -= deltaMs;
 
-    while (timers[i] <= 0) {
+    let clicksThisFrame = 0;
+    while (timers[i] <= 0 && clicksThisFrame < MAX_CLICKS_PER_FRAME) {
       timers[i] += interval;
       if (timers[i] < 0) timers[i] = interval; // evitar acumulación negativa extrema
 
       totalEarned += power;
       totalClicksFired++;
+      clicksThisFrame++;
 
-      emit('autoClickFired', { cursorIndex: i, power, interval });
+      emit("autoClickFired", { cursorIndex: i, power, interval });
       anyFired = true;
     }
   }
@@ -80,7 +87,11 @@ export function processAutoClickers(deltaMs) {
       totalClicks: newClicks,
     });
 
-    emit('stateUpdated', { energy: newEnergy, totalEnergyEarned: newTotal, totalClicks: newClicks });
+    emit("stateUpdated", {
+      energy: newEnergy,
+      totalEnergyEarned: newTotal,
+      totalClicks: newClicks,
+    });
   }
 }
 

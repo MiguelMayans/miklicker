@@ -6,7 +6,25 @@
 let audioCtx = null;
 let masterGain = null;
 
-const SOUND_ENABLED = true;
+const MUTE_KEY = "miklicker_muted";
+let isMuted = localStorage.getItem(MUTE_KEY) === "true";
+
+export function getMuteState() {
+  return isMuted;
+}
+
+export function toggleMute() {
+  isMuted = !isMuted;
+  localStorage.setItem(MUTE_KEY, String(isMuted));
+  if (masterGain) {
+    masterGain.gain.setTargetAtTime(
+      isMuted ? 0 : 0.25,
+      audioCtx.currentTime,
+      0.05,
+    );
+  }
+  return isMuted;
+}
 
 function ensureContext() {
   if (!audioCtx) {
@@ -15,7 +33,7 @@ function ensureContext() {
     masterGain.gain.value = 0.25;
     masterGain.connect(audioCtx.destination);
   }
-  if (audioCtx.state === 'suspended') {
+  if (audioCtx.state === "suspended") {
     audioCtx.resume();
   }
 }
@@ -25,7 +43,7 @@ function ensureContext() {
  * Ruido blanco filtrado con pitch drop rápido.
  */
 export function playClickPop(intensity = 1) {
-  if (!SOUND_ENABLED) return;
+  if (isMuted) return;
   ensureContext();
 
   const t0 = audioCtx.currentTime;
@@ -44,7 +62,7 @@ export function playClickPop(intensity = 1) {
 
   // Filtro paso-bajo que baja de frecuencia
   const filter = audioCtx.createBiquadFilter();
-  filter.type = 'lowpass';
+  filter.type = "lowpass";
   filter.frequency.setValueAtTime(1200, t0);
   filter.frequency.exponentialRampToValueAtTime(200, t0 + duration);
 
@@ -71,7 +89,7 @@ export function playClickPop(intensity = 1) {
  * Pop más suave y agudo para auto-clicks de cursor.
  */
 export function playAutoClickPop() {
-  if (!SOUND_ENABLED) return;
+  if (isMuted) return;
   ensureContext();
 
   const t0 = audioCtx.currentTime;
@@ -88,7 +106,7 @@ export function playAutoClickPop() {
   noise.buffer = buffer;
 
   const filter = audioCtx.createBiquadFilter();
-  filter.type = 'lowpass';
+  filter.type = "lowpass";
   filter.frequency.setValueAtTime(1800, t0);
   filter.frequency.exponentialRampToValueAtTime(400, t0 + duration);
 
@@ -114,14 +132,14 @@ export function playAutoClickPop() {
  * Onda sinusoidal con vibrato ligero.
  */
 export function playPurchaseDing() {
-  if (!SOUND_ENABLED) return;
+  if (isMuted) return;
   ensureContext();
 
   const t0 = audioCtx.currentTime;
 
   // Tono principal ascendente
   const osc = audioCtx.createOscillator();
-  osc.type = 'sine';
+  osc.type = "sine";
   osc.frequency.setValueAtTime(440, t0);
   osc.frequency.linearRampToValueAtTime(880, t0 + 0.15);
 
@@ -142,7 +160,7 @@ export function playPurchaseDing() {
  * Tres notas en arpegio rápido.
  */
 export function playMilestoneChime() {
-  if (!SOUND_ENABLED) return;
+  if (isMuted) return;
   ensureContext();
 
   const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
@@ -150,7 +168,7 @@ export function playMilestoneChime() {
 
   notes.forEach((freq, i) => {
     const osc = audioCtx.createOscillator();
-    osc.type = 'sine';
+    osc.type = "sine";
     osc.frequency.value = freq;
 
     const env = audioCtx.createGain();
