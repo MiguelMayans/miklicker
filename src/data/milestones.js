@@ -4,12 +4,14 @@
  */
 
 export const MILESTONES = [
+  // --- EARLY (bronze) ---
   {
     id: 'first_click',
     name: 'Primera Chispa',
     description: 'Has generado tu primera unidad de energía.',
     condition: { type: 'totalClicks', value: 1 },
     reward: { type: 'energy', amount: 0 },
+    tier: 'bronze',
   },
   {
     id: 'ten_clicks',
@@ -17,6 +19,7 @@ export const MILESTONES = [
     description: '10 clics en el reactor.',
     condition: { type: 'totalClicks', value: 10 },
     reward: { type: 'energy', amount: 5 },
+    tier: 'bronze',
   },
   {
     id: 'hundred_clicks',
@@ -24,6 +27,7 @@ export const MILESTONES = [
     description: '100 clics en el reactor.',
     condition: { type: 'totalClicks', value: 100 },
     reward: { type: 'energy', amount: 50 },
+    tier: 'bronze',
   },
   {
     id: 'first_building',
@@ -31,6 +35,7 @@ export const MILESTONES = [
     description: 'Tu primera infraestructura automatizada.',
     condition: { type: 'totalBuildings', value: 1 },
     reward: { type: 'energy', amount: 10 },
+    tier: 'bronze',
   },
   {
     id: 'ten_buildings',
@@ -38,6 +43,7 @@ export const MILESTONES = [
     description: '10 edificios operativos.',
     condition: { type: 'totalBuildings', value: 10 },
     reward: { type: 'energy', amount: 100 },
+    tier: 'bronze',
   },
   {
     id: 'energy_100',
@@ -45,6 +51,7 @@ export const MILESTONES = [
     description: 'Has acumulado 100 de energía en total.',
     condition: { type: 'totalEnergyEarned', value: 100 },
     reward: { type: 'energy', amount: 20 },
+    tier: 'bronze',
   },
   {
     id: 'energy_1k',
@@ -52,6 +59,7 @@ export const MILESTONES = [
     description: '1,000 de energía acumulada.',
     condition: { type: 'totalEnergyEarned', value: 1000 },
     reward: { type: 'energy', amount: 100 },
+    tier: 'bronze',
   },
   {
     id: 'energy_10k',
@@ -59,6 +67,155 @@ export const MILESTONES = [
     description: '10,000 de energía acumulada.',
     condition: { type: 'totalEnergyEarned', value: 10000 },
     reward: { type: 'energy', amount: 500 },
+    tier: 'bronze',
+  },
+
+  // --- MID (silver) ---
+  {
+    id: 'clicks_1000',
+    name: 'Tendón Carbón-fibra',
+    description: '1,000 clics en el reactor. El núcleo reconoce tu persistencia.',
+    condition: { type: 'totalClicks', value: 1000 },
+    reward: { type: 'energy', amount: 1000 },
+    tier: 'silver',
+  },
+  {
+    id: 'energy_100k',
+    name: 'Centena de Kilovatios',
+    description: '100,000 de energía acumulada. La colonia prospera.',
+    condition: { type: 'totalEnergyEarned', value: 100000 },
+    reward: { type: 'energy', amount: 5000 },
+    tier: 'silver',
+  },
+  {
+    id: 'total_buildings_50',
+    name: 'Constelación Industrial',
+    description: '50 edificios operativos simultáneos.',
+    condition: { type: 'totalBuildings', value: 50 },
+    reward: { type: 'energy', amount: 5000 },
+    tier: 'silver',
+  },
+  {
+    id: 'solar_50',
+    name: 'Manto Solar Total',
+    description: '50 paneles solares orbitando la estrella.',
+    condition: { type: 'buildingOwned', building: 'solar_panel', value: 50 },
+    reward: { type: 'energy', amount: 10000 },
+    tier: 'silver',
+  },
+  {
+    id: 'clicks_5000',
+    name: 'Sincronización Neural',
+    description: '5,000 clics. Tu mente se funde con el reactor.',
+    condition: { type: 'totalClicks', value: 5000 },
+    reward: { type: 'multiplier', multiplier: 1.1 },
+    tier: 'silver',
+  },
+  {
+    id: 'energy_1m',
+    name: 'Gigavatio Estelar',
+    description: '1,000,000 de energía acumulada. Civilización Tipo I.',
+    condition: { type: 'totalEnergyEarned', value: 1000000 },
+    reward: { type: 'energy', amount: 50000 },
+    tier: 'silver',
+  },
+  {
+    id: 'total_buildings_100',
+    name: 'Mega-Colonia',
+    description: '100 edificios operativos. La red industrial está consolidada.',
+    condition: { type: 'totalBuildings', value: 100 },
+    reward: { type: 'multiplier', multiplier: 1.1 },
+    tier: 'silver',
+  },
+  {
+    id: 'mine_100',
+    name: 'Excavación Profunda',
+    description: '100 perforadoras lunares devoran el regolito.',
+    condition: { type: 'buildingOwned', building: 'lunar_mine', value: 100 },
+    reward: { type: 'energy', amount: 50000 },
+    tier: 'silver',
+  },
+  {
+    id: 'fusion_50',
+    name: 'Llama Eterna',
+    description: '50 reactores de fusión alimentan la colonia.',
+    condition: { type: 'buildingOwned', building: 'fusion_reactor', value: 50 },
+    reward: { type: 'energy', amount: 200000 },
+    tier: 'silver',
+  },
+
+  // --- LATE (gold) ---
+  {
+    id: 'clicks_50000',
+    name: 'Dedos de Dios',
+    description: '50,000 clics. Trasciendes la mortalidad del clic.',
+    condition: { type: 'totalClicks', value: 50000 },
+    reward: { type: 'multiplier', multiplier: 1.25 },
+    tier: 'gold',
+  },
+  {
+    id: 'energy_10m',
+    name: 'Teravatio Galáctico',
+    description: '10,000,000 de energía. El sector resplandece.',
+    condition: { type: 'totalEnergyEarned', value: 10000000 },
+    reward: { type: 'energy', amount: 500000 },
+    tier: 'gold',
+  },
+  {
+    id: 'total_buildings_500',
+    name: 'Imperio Energético',
+    description: '500 edificios. Toda la galaxia es tu fábrica.',
+    condition: { type: 'totalBuildings', value: 500 },
+    reward: { type: 'multiplier', multiplier: 1.25 },
+    tier: 'gold',
+  },
+  {
+    id: 'dark_matter_50',
+    name: 'Tocado por la Oscuridad',
+    description: '50 cosechadores de materia oscura. La radiación exótica te bendice.',
+    condition: { type: 'buildingOwned', building: 'dark_matter_harvester', value: 50 },
+    reward: { type: 'cosmicData', amount: 1 },
+    tier: 'gold',
+  },
+  {
+    id: 'singularity_1',
+    name: 'Punto Sin Retorno',
+    description: 'Has creado una singularidad artificial. Civilización Tipo II.',
+    condition: { type: 'buildingOwned', building: 'singularity', value: 1 },
+    reward: { type: 'cosmicData', amount: 2 },
+    tier: 'gold',
+  },
+  {
+    id: 'dyson_10',
+    name: 'Custodio Estelar',
+    description: '10 esferas de Dyson encapsulan otras tantas estrellas.',
+    condition: { type: 'buildingOwned', building: 'dyson_sphere', value: 10 },
+    reward: { type: 'cosmicData', amount: 3 },
+    tier: 'gold',
+  },
+  {
+    id: 'wormhole_1',
+    name: 'Doblez del Continuum',
+    description: 'Tu primer agujero de gusano. El espaciotiempo es tu juguete.',
+    condition: { type: 'buildingOwned', building: 'wormhole', value: 1 },
+    reward: { type: 'multiplier', multiplier: 1.5 },
+    tier: 'gold',
+  },
+  {
+    id: 'energy_1b',
+    name: 'Petavatio Cósmico',
+    description: '1,000,000,000 de energía. Civilización Tipo III.',
+    condition: { type: 'totalEnergyEarned', value: 1000000000 },
+    reward: { type: 'cosmicData', amount: 5 },
+    tier: 'gold',
+  },
+  {
+    id: 'universal_computer_1',
+    name: 'Mente Galáctica',
+    description: 'La computadora universal despierta. Todo está optimizado.',
+    condition: { type: 'buildingOwned', building: 'universal_computer', value: 1 },
+    reward: { type: 'multiplier', multiplier: 2.0 },
+    tier: 'gold',
   },
 ];
 

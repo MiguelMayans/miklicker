@@ -19,9 +19,28 @@ const unlockedBuildings = new Set();
 
 let buyQuantity = 1;
 
+const MASTERY_TIERS = [
+  { threshold: 100, label: 'GOLD', color: '#facc15', text: '#111111' },
+  { threshold: 50, label: 'SILVER', color: '#c0c0c0', text: '#111111' },
+  { threshold: 10, label: 'BRONZE', color: '#cd7f32', text: '#ffffff' },
+];
+
 export function setBuyQuantity(qty) {
   buyQuantity = qty;
   renderShop(); // re-render para actualizar costes
+}
+
+function updateMasteryBadge(el, owned, tierColor) {
+  const tier = MASTERY_TIERS.find((t) => owned >= t.threshold);
+  if (!tier) {
+    el.classList.add('hidden');
+    return;
+  }
+  el.classList.remove('hidden');
+  el.textContent = tier.label;
+  el.style.backgroundColor = tier.color;
+  el.style.color = tier.text;
+  el.style.boxShadow = `0 0 6px ${tierColor || tier.color}`;
 }
 
 export function getBuyQuantity() {
@@ -64,6 +83,7 @@ export function refreshShopAffordability() {
     refs.costEl.textContent = `${qtyLabel}${formatNumber(cost, 0)} kWh`;
     refs.costEl.className = `text-sm font-extrabold ${canAfford ? 'text-[#06b6d4]' : 'text-[#dc2626]'}`;
     refs.countEl.textContent = String(owned);
+    if (refs.masteryEl) updateMasteryBadge(refs.masteryEl, owned, building.tierColor);
     if (building.isAutoClicker) {
       refs.totalProdEl.textContent = `+${formatNumber(owned)} clics`;
     } else {
@@ -142,8 +162,14 @@ function renderShop() {
     countEl.className = 'text-xs font-bold text-[#6b6b64] bg-[#d4d0c8] px-1.5 border border-[#a09c94]';
     countEl.textContent = String(owned);
 
+    // Insignia de maestría por cantidad poseída
+    const masteryEl = document.createElement('span');
+    masteryEl.className = 'text-[9px] font-extrabold px-1 py-0.5 border border-black uppercase tracking-wider';
+    updateMasteryBadge(masteryEl, owned, building.tierColor);
+
     nameWrap.appendChild(name);
     nameWrap.appendChild(countEl);
+    nameWrap.appendChild(masteryEl);
 
     const costEl = document.createElement('span');
     costEl.className = `text-sm font-extrabold ${canAfford ? 'text-[#06b6d4]' : 'text-[#dc2626]'}`;
@@ -226,7 +252,7 @@ function renderShop() {
     card.appendChild(info);
     fragment.appendChild(card);
 
-    buildingCards.set(building.id, { card, costEl, countEl, totalProdEl, nextCostEl, clickHandler });
+    buildingCards.set(building.id, { card, costEl, countEl, totalProdEl, nextCostEl, clickHandler, masteryEl });
   }
 
   shopContainer.appendChild(fragment);

@@ -64,23 +64,41 @@ function isMilestoneComplete(milestone, state) {
 function completeMilestone(milestone, state) {
   completedThisSession.add(milestone.id);
 
-  // Aplicar recompensa de forma segura
-  const rewardAmount =
-    (milestone.reward?.type === "energy" ? milestone.reward?.amount : 0) ?? 0;
-  const newEnergy = state.energy + rewardAmount;
-  const newTotalEnergyEarned = state.totalEnergyEarned + rewardAmount;
   const newMilestones = [...(state.milestones ?? []), milestone.id];
+  const patch = { milestones: newMilestones };
 
-  updateState({
-    energy: newEnergy,
-    milestones: newMilestones,
-    totalEnergyEarned: newTotalEnergyEarned,
-  });
+  // Aplicar recompensa según el tipo
+  const rewardType = milestone.reward?.type;
+  switch (rewardType) {
+    case "energy": {
+      const amount = milestone.reward?.amount ?? 0;
+      patch.energy = state.energy + amount;
+      patch.totalEnergyEarned = state.totalEnergyEarned + amount;
+      break;
+    }
+    case "cosmicData": {
+      const amount = milestone.reward?.amount ?? 0;
+      patch.prestige = {
+        ...(state.prestige ?? {}),
+        cosmicData: (state.prestige?.cosmicData ?? 0) + amount,
+      };
+      break;
+    }
+    case "multiplier": {
+      const multiplier = milestone.reward?.multiplier ?? 1;
+      patch.globalMultiplier = (state.globalMultiplier ?? 1) * multiplier;
+      break;
+    }
+    default:
+      break;
+  }
+
+  updateState(patch);
 
   // Mostrar popup
   showMilestonePopup(milestone);
 
   // Emitir eventos
   emit("milestoneCompleted", { id: milestone.id, name: milestone.name });
-  emit("stateUpdated", { energy: newEnergy, milestones: newMilestones });
+  emit("stateUpdated", patch);
 }

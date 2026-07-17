@@ -13,9 +13,22 @@ let pressureFillEl = null;
 let pressureTextEl = null;
 let pulseContainer = null;
 let ledEls = [];
+let stageTitleEl = null;
 
 // Tween continuo del plasma
 let plasmaTween = null;
+
+// ─── ESTADIOS VISUALES DEL REACTOR ───
+// Cada etapa desbloquea nuevos componentes visuales y renombra la cámara.
+const REACTOR_STAGES = [
+  { threshold: 0, name: 'Cámara de Ignición Estelar // SECC-01', label: 'MK-I' },
+  { threshold: 1_000, name: 'Cámara de Plasma Refinado // SECC-02', label: 'MK-II' },
+  { threshold: 50_000, name: 'Cámara de Fusión Estelar // SECC-03', label: 'MK-III' },
+  { threshold: 1_000_000, name: 'Cámara Cuántica Estelar // SECC-04', label: 'MK-IV' },
+  { threshold: 100_000_000, name: 'Cámara de Singularidad // SECC-05', label: 'MK-V' },
+];
+
+let currentStageIndex = -1;
 
 export function initReactor(container) {
   container.innerHTML = '';
@@ -35,8 +48,9 @@ export function initReactor(container) {
           <div class="reactor-led w-3 h-3 rounded-full bg-[#16a34a]" data-led="3"></div>
           <div class="reactor-led w-3 h-3 rounded-full bg-[#16a34a]" data-led="4"></div>
         </div>
+        <span id="reactor-stage-label" class="text-[10px] font-extrabold text-[#06b6d4] uppercase tracking-[0.15em] border-[2px] border-black px-1.5 py-0.5 bg-[#111111]">MK-I</span>
       </div>
-      <span class="text-[10px] font-extrabold text-[#777777] uppercase tracking-[0.15em]">Cámara de Ignición Estelar // SECC-01</span>
+      <span id="reactor-stage-title" class="text-[10px] font-extrabold text-[#777777] uppercase tracking-[0.15em]">Cámara de Ignición Estelar // SECC-01</span>
     </div>
 
     <!-- ZONA DE PISTONES -->
@@ -171,6 +185,26 @@ export function initReactor(container) {
 
       <!-- Contenedor de pulsos (auto-click) -->
       <div id="pulse-container" class="absolute inset-[6px] pointer-events-none overflow-hidden z-30"></div>
+
+      <!-- STAGE 2: Bobinas de refrigeración laterales -->
+      <div id="stage-coils" class="absolute inset-y-0 left-[-14px] right-[-14px] pointer-events-none opacity-0 z-20">
+        <div class="absolute top-0 bottom-0 left-0 w-3 border-y-[3px] border-l-[3px] border-black bg-[#d4d0c8]" style="background: repeating-linear-gradient(0deg, #555555 0px, #555555 3px, #d4d0c8 3px, #d4d0c8 6px);"></div>
+        <div class="absolute top-0 bottom-0 right-0 w-3 border-y-[3px] border-r-[3px] border-black bg-[#d4d0c8]" style="background: repeating-linear-gradient(0deg, #555555 0px, #555555 3px, #d4d0c8 3px, #d4d0c8 6px);"></div>
+      </div>
+
+      <!-- STAGE 3: Anillo de confinamiento magnético -->
+      <div id="stage-ring" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[140%] rounded-full border-[3px] border-dashed border-[#06b6d4] opacity-0 pointer-events-none z-20" style="box-shadow: 0 0 0 4px rgba(6,182,212,0.15), inset 0 0 20px rgba(6,182,212,0.1);"></div>
+
+      <!-- STAGE 4: Estabilizadores cuánticos (orbs) -->
+      <div id="stage-orbs" class="absolute inset-0 pointer-events-none opacity-0 z-20">
+        <div class="stage-orb absolute top-1/2 left-[12%] w-2.5 h-2.5 rounded-full bg-[#a855f7] border border-black" style="box-shadow: 0 0 8px #a855f7;"></div>
+        <div class="stage-orb absolute top-1/2 right-[12%] w-2.5 h-2.5 rounded-full bg-[#a855f7] border border-black" style="box-shadow: 0 0 8px #a855f7;"></div>
+        <div class="stage-orb absolute top-[18%] left-1/2 w-2 h-2 rounded-full bg-[#22d3ee] border border-black" style="box-shadow: 0 0 8px #22d3ee;"></div>
+        <div class="stage-orb absolute bottom-[18%] left-1/2 w-2 h-2 rounded-full bg-[#22d3ee] border border-black" style="box-shadow: 0 0 8px #22d3ee;"></div>
+      </div>
+
+      <!-- STAGE 5: Núcleo de singularidad -->
+      <div id="stage-singularity" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full opacity-0 pointer-events-none z-20" style="background: radial-gradient(circle, rgba(239,68,68,0.9) 0%, rgba(0,0,0,0.85) 55%, transparent 70%); box-shadow: 0 0 20px rgba(239,68,68,0.5), inset 0 0 10px rgba(0,0,0,0.8);"></div>
     </div>
 
     <!-- BARRA DE PRESIÓN -->
@@ -199,12 +233,16 @@ export function initReactor(container) {
   pressureTextEl = document.getElementById('pressure-text');
   pulseContainer = document.getElementById('pulse-container');
   ledEls = root.querySelectorAll('.reactor-led');
+  stageTitleEl = document.getElementById('reactor-stage-title');
 
   // Animación continua del plasma (brillo central respirando)
   startPlasmaIdle();
 
   // Spawnear partículas de plasma periódicamente
   startPlasmaParticles();
+
+  // Animaciones de los elementos de etapa avanzada
+  startStageAnimations();
 }
 
 // ─── ANIMACIONES CONTINUAS ───
@@ -270,14 +308,120 @@ function startPlasmaParticles() {
   return () => clearInterval(interval);
 }
 
+function startStageAnimations() {
+  if (!rootEl) return;
+
+  // Anillo de confinamiento magnético: rotación lenta continua
+  const ring = document.getElementById('stage-ring');
+  if (ring) {
+    gsap.to(ring, {
+      rotation: 360,
+      duration: 20,
+      ease: 'none',
+      repeat: -1,
+      transformOrigin: '50% 50%',
+    });
+  }
+
+  // Órbitas de los estabilizadores cuánticos
+  const orbs = rootEl.querySelectorAll('.stage-orb');
+  orbs.forEach((orb, i) => {
+    const isVertical = i >= 2;
+    gsap.to(orb, {
+      [isVertical ? 'y' : 'x']: isVertical ? (i === 2 ? 14 : -14) : (i === 0 ? 18 : -18),
+      duration: 1.6 + i * 0.2,
+      ease: 'sine.inOut',
+      yoyo: true,
+      repeat: -1,
+    });
+  });
+
+  // Singularidad: pulso lento amenazante
+  const singularity = document.getElementById('stage-singularity');
+  if (singularity) {
+    gsap.to(singularity, {
+      scale: 1.15,
+      opacity: 0.85,
+      duration: 1.2,
+      ease: 'sine.inOut',
+      yoyo: true,
+      repeat: -1,
+    });
+  }
+}
+
+// ─── ACTUALIZACIÓN DE ETAPA DEL REACTOR ───
+
+export function updateReactorStage(energy) {
+  if (!rootEl) return;
+
+  // Encontrar la etapa actual según energía acumulada en el banco
+  let stageIndex = 0;
+  for (let i = REACTOR_STAGES.length - 1; i >= 0; i--) {
+    if (energy >= REACTOR_STAGES[i].threshold) {
+      stageIndex = i;
+      break;
+    }
+  }
+
+  // Actualizar título y badge
+  const stage = REACTOR_STAGES[stageIndex];
+  const labelEl = document.getElementById('reactor-stage-label');
+  if (labelEl) labelEl.textContent = stage.label;
+  if (stageTitleEl) stageTitleEl.textContent = stage.name;
+
+  // Si no hay cambio de etapa, no animar revelado
+  if (stageIndex <= currentStageIndex) {
+    currentStageIndex = stageIndex;
+    return;
+  }
+
+  const previousStage = currentStageIndex;
+  currentStageIndex = stageIndex;
+
+  // Revelar componentes nuevos con GSAP
+  const reveals = [];
+  if (stageIndex >= 1) reveals.push(document.getElementById('stage-coils'));
+  if (stageIndex >= 2) reveals.push(document.getElementById('stage-ring'));
+  if (stageIndex >= 3) reveals.push(document.getElementById('stage-orbs'));
+  if (stageIndex >= 4) reveals.push(document.getElementById('stage-singularity'));
+
+  reveals.forEach((el, i) => {
+    if (!el) return;
+    gsap.to(el, {
+      opacity: 1,
+      duration: 0.8,
+      delay: i * 0.15,
+      ease: 'power2.out',
+    });
+  });
+
+  // Efecto de "power-up" del plasma al subir de etapa
+  if (plasmaEl && previousStage >= 0) {
+    gsap.fromTo(
+      plasmaEl,
+      { filter: 'brightness(2.5) saturate(1.8)' },
+      { filter: 'brightness(1) saturate(1)', duration: 1.2, ease: 'power2.out' }
+    );
+  }
+}
+
 // ─── EVENTOS DEL REACTOR ───
 
-export function triggerReactorClick() {
+export function triggerReactorClick(opts = {}) {
   if (!rootEl) return;
+
+  const intensity = opts.intensity ?? 1;
+  const isCrit = !!opts.isCrit;
 
   // Pistones: timeline secuencial con stagger
   const units = rootEl.querySelectorAll('.piston-unit');
   const tl = gsap.timeline();
+
+  // En crítico: bajada más larga, stagger más rápido para impacto brutal
+  const downY = 16 + (isCrit ? 8 : 0) + intensity * 4;
+  const downDur = isCrit ? 0.04 : 0.05;
+  const stagger = isCrit ? 0.035 : 0.06;
 
   units.forEach((unit, i) => {
     const cap = unit.querySelector('.piston-cap');
@@ -289,25 +433,35 @@ export function triggerReactorClick() {
     tl.to(
       [cap, rod],
       {
-        y: 16,
-        duration: 0.05,
+        y: downY,
+        duration: downDur,
         ease: 'power4.in',
       },
-      i * 0.06
+      i * stagger
     );
 
-    // Flash de impacto blanco
+    // Flash de impacto blanco (más intenso en crítico)
     tl.to(
       strike,
-      { opacity: 0.95, scale: 1.5, duration: 0.03, ease: 'none' },
-      i * 0.06 + 0.04
+      {
+        opacity: isCrit ? 1 : 0.95,
+        scale: isCrit ? 2.2 : 1.5,
+        duration: 0.03,
+        ease: 'none',
+      },
+      i * stagger + 0.04
     );
 
-    // Chispa amarilla al impacto
+    // Chispa (gold en normal, roja en crítico)
     tl.to(
       spark,
-      { opacity: 1, scale: 3, duration: 0.04, ease: 'power2.out' },
-      i * 0.06 + 0.04
+      {
+        opacity: 1,
+        scale: isCrit ? 4 : 3,
+        duration: 0.04,
+        ease: 'power2.out',
+      },
+      i * stagger + 0.04
     );
 
     // SUBIDA: rebote elástico pesado
@@ -315,53 +469,67 @@ export function triggerReactorClick() {
       [cap, rod],
       {
         y: 0,
-        duration: 0.22,
+        duration: isCrit ? 0.28 : 0.22,
         ease: 'elastic.out(1, 0.45)',
       },
-      i * 0.06 + 0.07
+      i * stagger + 0.06
     );
 
     // Fade out del flash
     tl.to(
       strike,
       { opacity: 0, scale: 1, duration: 0.18, ease: 'power2.out' },
-      i * 0.06 + 0.07
+      i * stagger + 0.06
     );
 
-    // Fade out de la chispa
+    // Fade out de la chispa (tinte rojo si crit)
     tl.to(
       spark,
-      { opacity: 0, scale: 1, duration: 0.2, ease: 'power2.out' },
-      i * 0.06 + 0.08
+      {
+        opacity: 0,
+        scale: 1,
+        duration: 0.2,
+        ease: 'power2.out',
+        backgroundColor: isCrit ? '#ef4444' : '#facc15',
+      },
+      i * stagger + 0.08
     );
   });
 
-  // Plasma: shockwave horizontal
+  // Plasma: shockwave horizontal (más grande en crítico)
   const shock = document.getElementById('plasma-shockwave');
   if (shock) {
+    if (isCrit) {
+      shock.style.borderColor = 'rgba(250,204,21,0.95)';
+      shock.style.boxShadow = '0 0 30px rgba(250,204,21,0.7)';
+    } else {
+      shock.style.borderColor = 'rgba(165,243,252,0.9)';
+      shock.style.boxShadow = '0 0 20px rgba(165,243,252,0.5)';
+    }
     gsap.fromTo(
       shock,
       { width: 10, height: 10, opacity: 1 },
       {
-        width: 500,
-        height: 80,
+        width: isCrit ? 620 : 500,
+        height: isCrit ? 110 : 80,
         opacity: 0,
-        duration: 0.5,
+        duration: isCrit ? 0.6 : 0.5,
         ease: 'power2.out',
       }
     );
   }
 
-  // Brillo intenso del plasma
+  // Brillo intenso del plasma (más fuerte en crítico)
   if (plasmaEl) {
+    const brightness = isCrit ? 'brightness(2) saturate(1.5)' : 'brightness(1.5) saturate(1.3)';
     gsap.to(plasmaEl, {
-      filter: 'brightness(1.5) saturate(1.3)',
+      filter: brightness,
       duration: 0.08,
       ease: 'none',
       onComplete: () => {
         gsap.to(plasmaEl, {
           filter: 'brightness(1) saturate(1)',
-          duration: 0.3,
+          duration: isCrit ? 0.4 : 0.3,
           ease: 'power2.out',
         });
       },

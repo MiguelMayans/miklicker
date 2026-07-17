@@ -17,7 +17,7 @@ let height = 0;
 /** @type {Array<{x:number, y:number, vx:number, vy:number, size:number, color:string, life:number, maxLife:number}>} */
 let particles = [];
 
-const MAX_PARTICLES = 300;
+const MAX_PARTICLES = 600;
 
 let animationId = null;
 
@@ -63,24 +63,32 @@ function resize() {
  * @param {number} x
  * @param {number} y
  * @param {number} amount
+ * @param {object} [opts] - { isCrit: bool, intensity: number }
  */
-export function spawnClickSparks(x, y, amount) {
-  const count = Math.min(12, 6 + Math.floor(amount / 5));
+export function spawnClickSparks(x, y, amount, opts = {}) {
+  const isCrit = !!opts.isCrit;
+  const intensity = opts.intensity ?? 1;
+  const tier = Math.floor(Math.log10(Math.max(1, amount)));
+  const base = 8 + Math.min(50, tier * 6);
+  const count = Math.round(base * (isCrit ? 1.6 : 1) * (0.8 + intensity * 0.4));
   if (particles.length + count > MAX_PARTICLES) {
     particles.splice(0, particles.length + count - MAX_PARTICLES);
   }
   for (let i = 0; i < count; i++) {
     const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.5;
-    const speed = 1.5 + Math.random() * 2.5;
+    const speed = 1.5 + Math.random() * 2.5 + (isCrit ? 3 : 0) + intensity;
+    const color = isCrit
+      ? (Math.random() > 0.3 ? "#facc15" : "#ef4444")
+      : (Math.random() > 0.5 ? "#facc15" : "#22d3ee");
     particles.push({
       x,
       y,
       vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed - 1, // ligera tendencia hacia arriba
-      size: 2 + Math.random() * 2,
-      color: Math.random() > 0.5 ? "#facc15" : "#22d3ee", // amarillo o cyan
+      vy: Math.sin(angle) * speed - 1,
+      size: 2 + Math.random() * 2 + (isCrit ? 1.5 : 0),
+      color,
       life: 1,
-      maxLife: 0.8 + Math.random() * 0.4,
+      maxLife: 0.8 + Math.random() * 0.4 + (isCrit ? 0.3 : 0),
     });
   }
 }

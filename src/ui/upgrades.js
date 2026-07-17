@@ -52,13 +52,18 @@ export function refreshUpgrades() {
     const refs = upgradeCards.get(upgrade.id);
     if (!refs) continue;
 
-    const canAfford = state.energy >= upgrade.cost;
+    const costResource = upgrade.costResource ?? 'energy';
+    const canAfford = costResource === 'cosmicData'
+      ? (state.prestige?.cosmicData ?? 0) >= upgrade.cost
+      : state.energy >= upgrade.cost;
+    const resourceLabel = costResource === 'cosmicData' ? 'Datos' : 'kWh';
 
     refs.card.className = getUpgradeCardClasses(canAfford);
+    refs.card.style.borderLeftColor = canAfford ? getResourceAccent(costResource) : '';
     refs.card.dataset.canAfford = String(canAfford);
 
-    refs.costEl.textContent = `${formatNumber(upgrade.cost, 0)} kWh`;
-    refs.costEl.className = `text-sm font-extrabold ${canAfford ? 'text-[#06b6d4]' : 'text-[#dc2626]'}`;
+    refs.costEl.textContent = `${formatNumber(upgrade.cost, 0)} ${resourceLabel}`;
+    refs.costEl.className = `text-sm font-extrabold ${canAfford ? (costResource === 'cosmicData' ? 'text-[#a855f7]' : 'text-[#06b6d4]') : 'text-[#dc2626]'}`;
 
     if (canAfford && refs.card.dataset.hasClick !== 'true') {
       refs.card.addEventListener('click', refs.clickHandler);
@@ -86,11 +91,16 @@ function renderUpgrades() {
     if (!isUpgradeAvailable(upgrade, state)) continue;
     visibleCount++;
 
-    const canAfford = state.energy >= upgrade.cost;
+    const costResource = upgrade.costResource ?? 'energy';
+    const canAfford = costResource === 'cosmicData'
+      ? (state.prestige?.cosmicData ?? 0) >= upgrade.cost
+      : state.energy >= upgrade.cost;
+    const resourceLabel = costResource === 'cosmicData' ? 'Datos' : 'kWh';
     const clickHandler = () => purchaseUpgrade(upgrade.id);
 
     const card = document.createElement('div');
     card.className = getUpgradeCardClasses(canAfford);
+    if (canAfford) card.style.borderLeftColor = getResourceAccent(costResource);
     card.dataset.canAfford = String(canAfford);
     card.dataset.hasClick = canAfford ? 'true' : 'false';
 
@@ -108,8 +118,8 @@ function renderUpgrades() {
     name.textContent = upgrade.name;
 
     const costEl = document.createElement('span');
-    costEl.className = `text-sm font-extrabold ${canAfford ? 'text-[#06b6d4]' : 'text-[#dc2626]'}`;
-    costEl.textContent = `${formatNumber(upgrade.cost, 0)} kWh`;
+    costEl.className = `text-sm font-extrabold ${canAfford ? (costResource === 'cosmicData' ? 'text-[#a855f7]' : 'text-[#06b6d4]') : 'text-[#dc2626]'}`;
+    costEl.textContent = `${formatNumber(upgrade.cost, 0)} ${resourceLabel}`;
 
     row1.appendChild(name);
     row1.appendChild(costEl);
@@ -138,6 +148,27 @@ function renderUpgrades() {
       const source = BUILDINGS_BY_ID.get(fx.source)?.name ?? fx.source;
       const target = BUILDINGS_BY_ID.get(fx.target)?.name ?? fx.target;
       row3.textContent = `Sinergia: ${source} potencia ${target} +${Math.round(fx.bonusPerSource * 100)}% c/u`;
+    } else if (fx.type === 'crit_chance') {
+      row3.textContent = `Efecto: +${Math.round(fx.value * 100)}% probabilidad de crítico`;
+    } else if (fx.type === 'crit_multiplier') {
+      row3.textContent = `Efecto: multiplicador de crítico ×${fx.multiplier}`;
+    } else if (fx.type === 'combo_cap') {
+      row3.textContent = `Efecto: combo tope ${fx.value}, +${Math.round(fx.step * 100)}%/paso`;
+    } else if (fx.type === 'ability_unlock') {
+      const names = { energize: 'ENERGIZE', purge: 'PURGE', overload: 'OVERLOAD' };
+      row3.textContent = `Desbloquea: protocolo ${names[fx.ability] ?? fx.ability}`;
+    } else if (fx.type === 'tradeoff') {
+      const parts = [];
+      if (fx.productionMultiplier > 1) parts.push(`producción ×${fx.productionMultiplier}`);
+      else if (fx.productionMultiplier < 1) parts.push(`producción ×${fx.productionMultiplier}`);
+      if (fx.clickMultiplier) parts.push(`clic ×${fx.clickMultiplier}`);
+      if (fx.heatMultiplier > 1) parts.push(`calor +${Math.round((fx.heatMultiplier - 1) * 100)}%`);
+      else if (fx.heatMultiplier < 1) parts.push(`calor -${Math.round((1 - fx.heatMultiplier) * 100)}%`);
+      row3.textContent = `Trade-off: ${parts.join(', ')}`;
+      row3.className = 'text-xs font-bold text-[#f59e0b] mt-1';
+    } else if (fx.type === 'prestige_efficiency') {
+      row3.textContent = `Efecto: eficiencia de Datos Cósmicos ×${fx.multiplier}`;
+      row3.className = 'text-xs font-bold text-[#a855f7] mt-1';
     } else {
       row3.textContent = 'Efecto: mejora activa';
     }
@@ -185,17 +216,25 @@ function renderUpgrades() {
   upgradesContainer.appendChild(fragment);
 }
 
-function purchaseUpgrade(upgradeId) {
+async function purchaseUpgrade(upgradeId) {
   const upgrade = UPGRADES_BY_ID.get(upgradeId);
   if (!upgrade) return;
 
   const state = getState();
-  if (state.energy < upgrade.cost || state.upgrades.includes(upgradeId)) return;
+  const costResource = upgrade.costResource ?? 'energy';
+  const canAfford = costResource === 'cosmicData'
+    ? (state.prestige?.cosmicData ?? 0) >= upgrade.cost
+    : state.energy >= upgrade.cost;
+  if (!canAfford || state.upgrades.includes(upgradeId)) return;
 
-  const newEnergy = state.energy - upgrade.cost;
+  const newEnergy = costResource === 'cosmicData' ? state.energy : state.energy - upgrade.cost;
+  const newCosmicData = costResource === 'cosmicData'
+    ? (state.prestige?.cosmicData ?? 0) - upgrade.cost
+    : (state.prestige?.cosmicData ?? 0);
   const newUpgrades = [...state.upgrades, upgradeId];
 
   const newState = { ...state, energy: newEnergy, upgrades: newUpgrades };
+  newState.prestige = { ...state.prestige, cosmicData: newCosmicData };
 
   const fx = upgrade.effect;
   if (fx.type === 'building_multiplier') {
@@ -212,6 +251,30 @@ function purchaseUpgrade(upgradeId) {
     newState.cursorMultiplier = (state.cursorMultiplier ?? 1) * fx.multiplier;
   } else if (fx.type === 'global_multiplier') {
     newState.globalMultiplier = (state.globalMultiplier ?? 1) * fx.multiplier;
+  } else if (fx.type === 'crit_chance') {
+    newState.critChance = (state.critChance ?? 0) + fx.value;
+  } else if (fx.type === 'crit_multiplier') {
+    newState.critMultiplier = (state.critMultiplier ?? 5) * fx.multiplier;
+  } else if (fx.type === 'combo_cap') {
+    newState.comboCap = fx.value;
+    newState.comboStep = fx.step;
+  } else if (fx.type === 'ability_unlock') {
+    if (!newState.abilities) newState.abilities = {};
+    newState.abilities[fx.ability] = { unlocked: true, cooldownUntil: 0 };
+  } else if (fx.type === 'tradeoff') {
+    if (fx.productionMultiplier) {
+      newState.globalMultiplier = (newState.globalMultiplier ?? 1) * fx.productionMultiplier;
+    }
+    if (fx.clickMultiplier) {
+      newState.clickPower = newState.clickPower * fx.clickMultiplier;
+    }
+    if (fx.heatMultiplier) {
+      newState.heatMultiplier = (newState.heatMultiplier ?? 1) * fx.heatMultiplier;
+    }
+  } else if (fx.type === 'prestige_efficiency') {
+    // Recalcular multiplicador de prestigio con la nueva eficiencia
+    const { calculatePrestigeMultiplier } = await import('../engine/prestige.js');
+    newState.prestige.multiplier = calculatePrestigeMultiplier(newState.prestige.totalCosmicDataEarned ?? newState.prestige.cosmicData, fx.multiplier);
   }
   // synergy se calcula dinámicamente en formulas.js, no necesita estado
 
@@ -233,9 +296,13 @@ function purchaseUpgrade(upgradeId) {
 function getUpgradeCardClasses(canAfford) {
   const base = 'p-3 border-[3px] bg-[#eae7e0] block-interactive';
   if (canAfford) {
-    return `${base} border-[#0f0f0f] border-l-[5px] border-l-[#06b6d4] cursor-pointer`;
+    return `${base} border-[#0f0f0f] border-l-[5px] cursor-pointer`;
   }
   return `${base} border-[#a09c94] opacity-40 cursor-not-allowed`;
+}
+
+function getResourceAccent(costResource) {
+  return costResource === 'cosmicData' ? '#a855f7' : '#06b6d4';
 }
 
 function flashUpgradeCard(card) {

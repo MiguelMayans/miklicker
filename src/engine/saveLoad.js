@@ -139,8 +139,6 @@ function migrateSave(payload) {
   let state = payload.state;
 
   if (version < 1) {
-    // Migraciones futuras irán aquí
-    // Ejemplo: si falta un campo, se añade con valor por defecto.
     if (!state.prestige) {
       state.prestige = { cosmicData: 0, multiplier: 1 };
     }
@@ -148,6 +146,20 @@ function migrateSave(payload) {
       state.buildingMultipliers = {};
     }
     version = 1;
+  }
+
+  if (version < 2) {
+    // Migración a v2: nuevos campos de prestigio, doctrinas, trade-offs y calor
+    state.prestige = {
+      cosmicData: state.prestige?.cosmicData ?? 0,
+      totalCosmicDataEarned: state.prestige?.cosmicData ?? 0,
+      multiplier: state.prestige?.multiplier ?? 1,
+      totalResets: state.prestige?.totalResets ?? 0,
+      doctrine: null,
+      doctrineEffects: { productionMultiplier: 1, clickMultiplier: 1, globalMultiplier: 1 },
+    };
+    state.heatMultiplier = 1;
+    version = 2;
   }
 
   return { ...payload, version: currentVersion, state };

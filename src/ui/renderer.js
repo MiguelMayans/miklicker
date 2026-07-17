@@ -21,14 +21,18 @@ import { initAutoClickers } from "../engine/autoClicker.js";
 import {
   calculatePrestigeGain,
   calculatePrestigeMultiplier,
+  calculatePrestigeEfficiency,
   doPrestige,
+  chooseDoctrine,
 } from "../engine/prestige.js";
+import { DOCTRINES } from "../data/doctrines.js";
 import { initShop, refreshShopAffordability, setBuyQuantity } from "./shop.js";
 import { UPGRADES, UPGRADES_BY_ID } from "../data/upgrades.js";
 import { initUpgrades, refreshUpgrades } from "./upgrades.js";
 import { initLog, addRandomLog } from "./log.js";
 import { checkMilestones } from "../engine/milestones.js";
 import { logOverheating, resetIdleTimer } from "../engine/commander.js";
+import { activateAbility, isAbilityReady, getCooldownRemaining, ABILITIES } from "../engine/abilities.js";
 import {
   playAutoClickPop,
   playPurchaseDing,
@@ -42,6 +46,7 @@ import {
   updateReactorPressure,
   updateReactorTemperature,
   updateReactorLEDs,
+  updateReactorStage,
 } from "./reactor.js";
 
 let energyDisplay = null;
@@ -111,6 +116,22 @@ function renderLayout() {
           <!-- LEFT: REACTOR ZONE -->
           <div id="reactor-zone" class="flex-[70] flex flex-col p-3 min-w-0 cursor-pointer">
             <div id="reactor-root" class="flex-1 min-h-0"></div>
+            <!-- COMBO METER -->
+            <div id="combo-meter" class="shrink-0 px-1 mb-1 opacity-0 transition-opacity duration-200">
+              <div class="flex items-center gap-2">
+                <span class="text-[9px] font-extrabold text-[#777777] uppercase tracking-wider shrink-0">Combo</span>
+                <div class="flex-1 h-2 border-[2px] border-black bg-[#d4d0c8] relative overflow-hidden">
+                  <div id="combo-fill" class="h-full combo-meter" style="width: 0%;"></div>
+                </div>
+                <span id="combo-text" class="text-[10px] font-extrabold text-[#06b6d4] tabular-nums shrink-0 w-16 text-right">×1.00</span>
+              </div>
+            </div>
+            <!-- ABILITY BUTTONS -->
+            <div id="ability-bar" class="shrink-0 flex gap-1.5 mb-1">
+              <button id="ability-energize" class="ability-btn hidden text-[9px] font-extrabold text-black uppercase tracking-wider px-2 py-1 border-[2px] border-black bg-[#facc15] hover:bg-[#eab308] block-interactive" title="Próximos 10 clics ×10 + reducen T°">⚡ ENERGIZE</button>
+              <button id="ability-purge" class="ability-btn hidden text-[9px] font-extrabold text-black uppercase tracking-wider px-2 py-1 border-[2px] border-black bg-[#60a5fa] hover:bg-[#3b82f6] block-interactive" title="Resetea T° — cuesta 10% energía">❄ PURGE</button>
+              <button id="ability-overload" class="ability-btn hidden text-[9px] font-extrabold text-white uppercase tracking-wider px-2 py-1 border-[2px] border-black bg-[#ef4444] hover:bg-[#dc2626] block-interactive" title="×3 producción 15s — T° sube 3×">🔥 OVERLOAD</button>
+            </div>
             <div class="shrink-0 grid grid-cols-2 gap-2 pt-2 border-t-[3px] border-black mt-2">
               <div class="text-center">
                 <p class="text-xs font-bold text-[#777777] uppercase tracking-wider">Extracción Manual</p>
@@ -155,6 +176,8 @@ function renderLayout() {
             <span id="prestige-data" class="text-sm font-extrabold text-[#06b6d4] tabular-nums">0</span>
             <div class="text-xs font-bold text-[#777777] uppercase tracking-wider ml-2">Multiplicador</div>
             <span id="prestige-multiplier" class="text-sm font-extrabold text-[#06b6d4] tabular-nums">×1.00</span>
+            <div class="text-xs font-bold text-[#777777] uppercase tracking-wider ml-2">Doctrina</div>
+            <span id="prestige-doctrine" class="text-sm font-extrabold text-[#f59e0b] tabular-nums">Sin doctrina</span>
           </div>
           <div class="flex items-center gap-3">
             <span id="prestige-gain" class="text-xs font-bold text-[#777777]">+0 al resetear</span>
@@ -265,13 +288,25 @@ function bindEvents() {
   const reactor = document.getElementById("reactor-zone");
   if (reactor) {
     reactor.addEventListener("click", (e) => {
-      triggerReactorClick();
+      // handleReactorClick calcula crit/combo y emite 'energyClicked'
+      // El feedback visual del reactor se dispara vía listener de ese evento
       handleReactorClick(e);
       resetIdleTimer();
       updateHeader();
       checkMilestones();
     });
   }
+
+  // Feedback visual del reactor basado en crit/intensidad calculados por el clicker
+  on('energyClicked', ({ amount, isCrit }) => {
+    const intensity = Math.min(2.5, Math.log10(amount + 10) / 3);
+    triggerReactorClick({ intensity, isCrit });
+  });
+
+  // Combo meter — actualizar barra y texto
+  on('comboChanged', ({ comboCount, comboMult }) => {
+    updateComboMeter(comboCount, comboMult);
+  });
 
   // Bulk buy quantity selector
   const qtyBtns = {
@@ -370,30 +405,121 @@ function bindEvents() {
     });
   }
 
+  // Active ability buttons
+  for (const id of ['energize', 'purge', 'overload']) {
+    const btn = document.getElementById(`ability-${id}`);
+    if (btn) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (activateAbility(id)) {
+          updateAbilityButtons();
+        }
+      });
+    }
+  }
+  // Tick abilities cada 250ms para cooldowns
+  setInterval(updateAbilityButtons, 250);
+
   const prestigeBtn = document.getElementById("prestige-btn");
   if (prestigeBtn) {
     prestigeBtn.addEventListener("click", () => {
       const state = getState();
       const gain = calculatePrestigeGain(state);
-      const newMultiplier = calculatePrestigeMultiplier(
-        state.prestige.cosmicData + gain,
-      );
       if (gain <= 0) return;
-      if (
-        confirm(
-          `RESET CÓSMICO\n\n` +
-            `Datos a ganar: +${gain}\n` +
-            `Total tras reset: ${state.prestige.cosmicData + gain}\n` +
-            `Multiplicador pasará de ×${formatNumber(state.prestige.multiplier, 2)} a ×${formatNumber(newMultiplier, 2)}\n\n` +
-            `⚠ Todo el progreso actual se perderá. Los Datos Cósmicos y su multiplicador son permanentes.`,
-        )
-      ) {
-        if (doPrestige()) {
-          window.location.reload();
-        }
+
+      // Si aún no hay doctrina, forzar elección antes del reset
+      if (!state.prestige?.doctrine) {
+        showDoctrineSelection(() => runPrestigeConfirmation());
+        return;
       }
+
+      runPrestigeConfirmation();
     });
   }
+}
+
+function runPrestigeConfirmation() {
+  const state = getState();
+  const gain = calculatePrestigeGain(state);
+  const efficiency = calculatePrestigeEfficiency(state);
+  const newMultiplier = calculatePrestigeMultiplier(
+    (state.prestige.totalCosmicDataEarned ?? 0) + gain,
+    efficiency,
+  );
+  if (gain <= 0) return;
+
+  const doctrineName = state.prestige?.doctrine
+    ? `\nDoctrina: ${DOCTRINES.find((d) => d.id === state.prestige.doctrine)?.name ?? state.prestige.doctrine}`
+    : '';
+
+  if (
+    confirm(
+      `RESET CÓSMICO\n\n` +
+        `Datos a ganar: +${gain}\n` +
+        `Total acumulado: ${(state.prestige.totalCosmicDataEarned ?? 0) + gain}\n` +
+        `Disponibles tras reset: ${(state.prestige.cosmicData ?? 0) + gain}\n` +
+        `Multiplicador pasará de ×${formatNumber(state.prestige.multiplier, 2)} a ×${formatNumber(newMultiplier, 2)}` +
+        doctrineName +
+        `\n\n⚠ Todo el progreso actual se perderá. Los Datos Cósmicos, su multiplicador y la doctrina son permanentes.`,
+    )
+  ) {
+    if (doPrestige()) {
+      window.location.reload();
+    }
+  }
+}
+
+/**
+ * Muestra un modal neobrutalista para elegir la doctrina de prestigio.
+ * `onSelected` se ejecuta tras la elección.
+ */
+function showDoctrineSelection(onSelected) {
+  if (document.getElementById('doctrine-modal')) return;
+
+  const modal = document.createElement('div');
+  modal.id = 'doctrine-modal';
+  modal.className = 'fixed inset-0 z-[10000] flex items-center justify-center bg-black/60';
+  modal.innerHTML = `
+    <div class="bg-[#e0ddd6] border-[4px] border-black p-5 max-w-lg w-full shadow-[8px_8px_0_0_#000] mx-3">
+      <h2 class="text-lg font-extrabold text-black font-space mb-2 uppercase tracking-wider">Elige una Doctrina</h2>
+      <p class="text-xs text-[#444444] mb-4 leading-relaxed">
+        La doctrina define la identidad de tu colonia. Es una elección permanente que seguirá activa en todos tus resets cósmicos.
+      </p>
+      <div id="doctrine-options" class="grid grid-cols-1 gap-2 mb-4"></div>
+      <button id="doctrine-cancel" class="w-full text-xs font-extrabold text-[#444444] uppercase tracking-wider px-3 py-2 border-[3px] border-[#a09c94] bg-[#d4d0c8] hover:bg-[#c4c0b8] block-interactive">Cancelar</button>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const options = modal.querySelector('#doctrine-options');
+  for (const doctrine of DOCTRINES) {
+    const btn = document.createElement('button');
+    btn.className = 'flex items-center gap-3 p-3 border-[3px] border-black bg-[#eae7e0] hover:bg-[#d4d0c8] text-left block-interactive';
+    btn.innerHTML = `
+      <span class="text-2xl">${doctrine.icon}</span>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-extrabold text-black truncate">${doctrine.name}</div>
+        <div class="text-xs text-[#444444] leading-tight">${doctrine.description}</div>
+      </div>
+    `;
+    btn.addEventListener('click', () => {
+      if (chooseDoctrine(doctrine.id)) {
+        modal.remove();
+        if (onSelected) onSelected();
+      }
+    });
+    options.appendChild(btn);
+  }
+
+  modal.querySelector('#doctrine-cancel').addEventListener('click', () => {
+    modal.remove();
+  });
+
+  // Cerrar al hacer clic fuera del panel
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
 }
 
 function throttledUpdateHeader() {
@@ -428,6 +554,7 @@ function updateHeader() {
     clickPowerEl.textContent = `${formatNumber(clickPower, 2)} kWh`;
 
   updateReactorPressure(state.energy);
+  updateReactorStage(state.energy);
 }
 
 function updateBuildingsCount() {
@@ -467,7 +594,7 @@ function updateTelemetry() {
   const tempEl = document.getElementById("telemetry-temp");
   let temp = 300;
   if (tempEl) {
-    const baseTemp = calculateCoreTemp(rawProduction);
+    const baseTemp = calculateCoreTemp(rawProduction, state);
     temp = Math.max(250, baseTemp + thermalNoise);
     tempEl.textContent = `${temp.toFixed(0)} K`;
     tempEl.className = `text-sm font-extrabold tabular-nums ${temp > 4000 ? "text-[#dc2626]" : temp > 2000 ? "text-[#f59e0b]" : temp > 1000 ? "text-[#d97706]" : "text-black"}`;
@@ -561,6 +688,14 @@ function updatePrestigeDisplay() {
   const multEl = document.getElementById("prestige-multiplier");
   if (multEl)
     multEl.textContent = `×${formatNumber(state.prestige.multiplier ?? 1, 2)}`;
+
+  const doctrineEl = document.getElementById("prestige-doctrine");
+  if (doctrineEl) {
+    const doctrine = DOCTRINES.find((d) => d.id === state.prestige?.doctrine);
+    doctrineEl.textContent = doctrine
+      ? `${doctrine.icon} ${doctrine.name}`
+      : "Sin doctrina";
+  }
 
   const gainEl = document.getElementById("prestige-gain");
   if (gainEl)
@@ -672,4 +807,88 @@ function positionTooltip(e, tooltip) {
 
   tooltip.style.left = `${left}px`;
   tooltip.style.top = `${top}px`;
+}
+
+/**
+ * Actualiza la barra de combo del reactor.
+ */
+function updateComboMeter(comboCount, comboMult) {
+  const meter = document.getElementById('combo-meter');
+  if (!meter) return;
+  const fill = document.getElementById('combo-fill');
+  const text = document.getElementById('combo-text');
+
+  if (comboCount <= 1) {
+    meter.style.opacity = '0';
+    return;
+  }
+
+  meter.style.opacity = '1';
+
+  const state = getState();
+  const cap = state.comboCap ?? 50;
+  const percent = Math.min(100, (comboCount / cap) * 100);
+  if (fill) fill.style.width = `${percent}%`;
+  if (text) {
+    text.textContent = `×${comboMult.toFixed(2)}`;
+    if (comboCount > cap * 0.7) {
+      text.className = 'text-[10px] font-extrabold text-[#ef4444] tabular-nums shrink-0 w-16 text-right';
+    } else if (comboCount > cap * 0.4) {
+      text.className = 'text-[10px] font-extrabold text-[#facc15] tabular-nums shrink-0 w-16 text-right';
+    } else {
+      text.className = 'text-[10px] font-extrabold text-[#06b6d4] tabular-nums shrink-0 w-16 text-right';
+    }
+  }
+}
+
+/**
+ * Actualiza los botones de habilidades activas: visibilidad, cooldown overlay, estado activo.
+ */
+function updateAbilityButtons() {
+  const state = getState();
+  for (const id of ['energize', 'purge', 'overload']) {
+    const btn = document.getElementById(`ability-${id}`);
+    if (!btn) continue;
+
+    const unlocked = state.abilities?.[id]?.unlocked;
+    if (!unlocked) {
+      btn.classList.add('hidden');
+      continue;
+    }
+    btn.classList.remove('hidden');
+
+    const ready = isAbilityReady(state, id);
+    if (ready) {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+      btn.textContent = `${glyphFor(id)} ${ABILITIES[id].name}`;
+    } else {
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'not-allowed';
+      const secs = getCooldownRemaining(state, id);
+      btn.textContent = `${glyphFor(id)} ${secs.toFixed(0)}s`;
+    }
+
+    // Estado activo: ENERGIZE con cargas, OVERLOAD durante duración
+    if (id === 'energize') {
+      const charges = state.abilities?.energize?.charges ?? 0;
+      if (charges > 0) {
+        btn.style.boxShadow = `0 0 12px ${ABILITIES.energize.color}`;
+        btn.textContent = `⚡ ${charges}×`;
+      }
+    } else if (id === 'overload') {
+      if (state.abilities?.overload?.activeUntil && Date.now() < state.abilities.overload.activeUntil) {
+        btn.style.boxShadow = '0 0 14px #ef4444';
+        btn.style.animation = 'pulseFast 0.5s infinite';
+      } else {
+        btn.style.animation = '';
+      }
+    }
+  }
+}
+
+function glyphFor(id) {
+  return { energize: '⚡', purge: '❄', overload: '🔥' }[id] ?? '';
 }

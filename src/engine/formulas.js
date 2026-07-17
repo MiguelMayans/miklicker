@@ -34,9 +34,12 @@ function calculateSynergyMultiplier(state, targetBuildingId) {
 /**
  * Calcula la temperatura base del núcleo en Kelvin (sin ruido térmico).
  * Base 300K + escalado lineal con producción hasta un máximo de 5300K.
+ * Con OVERLOAD activo, la temperatura escala 3× más rápido.
  */
-export function calculateCoreTemp(production) {
-  return 300 + Math.min(production * 0.5, 5000);
+export function calculateCoreTemp(production, state) {
+  const baseHeatScale = (state?.abilities?.overload?.activeUntil && Date.now() < state.abilities.overload.activeUntil) ? 1.5 : 0.5;
+  const tradeOffHeat = state?.heatMultiplier ?? 1;
+  return 300 + Math.min(production * baseHeatScale * tradeOffHeat, 7500);
 }
 
 /**
@@ -45,7 +48,9 @@ export function calculateCoreTemp(production) {
  * - Se desactiva solo cuando temp baja de OVERHEAT_COOLDOWN (3800K)
  */
 export function isOverheated(state, production) {
-  const temp = calculateCoreTemp(production);
+  // PURGE: ventana de enfriamiento forzado
+  if (state.purgeUntil && Date.now() < state.purgeUntil) return false;
+  const temp = calculateCoreTemp(production, state);
   if (state.overheated) {
     return temp > OVERHEAT_COOLDOWN;
   }
@@ -79,17 +84,55 @@ export function calculateRawProduction(state, buildingsById) {
  * EXCLUYE auto-clickers (cursor); esos se manejan en autoClicker.js.
  * Incluye sinergias entre edificios.
  * Aplica penalización ×0.5 si el núcleo está sobrecalentado.
+ * Aplica bonus ×3 si OVERLOAD está activo.
  */
 export function calculateTotalProduction(state, buildingsById) {
   const raw = calculateRawProduction(state, buildingsById);
+  let result = raw;
   if (isOverheated(state, raw)) {
-    return raw * OVERHEAT_PENALTY;
+    result *= OVERHEAT_PENALTY;
   }
-  return raw;
+  // OVERLOAD: ×3 producción
+  if (state.abilities?.overload?.activeUntil && Date.now() < state.abilities.overload.activeUntil) {
+    result *= 3;
+  }
+  // Doctrina de prestigio: producción
+  const doctrineProduction = state.prestige?.doctrineEffects?.productionMultiplier ?? 1;
+  result *= doctrineProduction;
+  // Doctrina de prestigio: multiplicador global
+  const doctrineGlobal = state.prestige?.doctrineEffects?.globalMultiplier ?? 1;
+  result *= doctrineGlobal;
+  return result;
 }
 
 export function calculateClickPower(state) {
-  return state.clickPower * state.globalMultiplier * state.prestige.multiplier;
+  const doctrineClick = state.prestige?.doctrineEffects?.clickMultiplier ?? 1;
+  const doctrineGlobal = state.prestige?.doctrineEffects?.globalMultiplier ?? 1;
+  return state.clickPower * state.globalMultiplier * state.prestige.multiplier * doctrineClick * doctrineGlobal;
+}
+
+/**
+ * Probabilidad de crítico actual (0..1).
+ */
+export function calculateCritChance(state) {
+  return Math.min(0.75, state.critChance ?? 0);
+}
+
+/**
+ * Multiplicador de daño crítico (×N).
+ */
+export function calculateCritMultiplier(state) {
+  return state.critMultiplier ?? 5;
+}
+
+/**
+ * Multiplicador de combo basado en el contador actual.
+ *Combo: 1 + min(combo, cap) * step. Max ~×3.5 con cap=50 step=0.05.
+ */
+export function calculateComboMultiplier(state, comboCount) {
+  const cap = state.comboCap ?? 50;
+  const step = state.comboStep ?? 0.05;
+  return 1 + Math.min(comboCount, cap) * step;
 }
 
 export function calculateAutoClickPower(state) {

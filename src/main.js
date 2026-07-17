@@ -10,6 +10,8 @@ import { start, pause, resume, processOfflineTime } from './engine/gameLoop.js';
 import { initUI } from './ui/renderer.js';
 import { initRandomEvents } from './engine/randomEvents.js';
 import { initStarfield } from './ui/starfield.js';
+import { initParticles } from './ui/particles.js';
+import { initMilestonePopup } from './ui/milestonePopup.js';
 import { emit } from './utils/eventBus.js';
 
 function bootstrap() {
@@ -23,6 +25,8 @@ function bootstrap() {
     emit('gameResumed');
   }
 
+  initParticles(document.body);
+  initMilestonePopup(document.body);
   initUI();
   initStarfield();
   initRandomEvents();

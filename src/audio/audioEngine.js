@@ -42,12 +42,12 @@ function ensureContext() {
  * Pop cálido y satisfactorio para clics en el reactor.
  * Ruido blanco filtrado con pitch drop rápido.
  */
-export function playClickPop(intensity = 1) {
+export function playClickPop(intensity = 1, comboStep = 0) {
   if (isMuted) return;
   ensureContext();
 
   const t0 = audioCtx.currentTime;
-  const duration = 0.08;
+  const duration = 0.08 + Math.min(0.04, intensity * 0.02);
 
   // Ruido blanco
   const bufferSize = audioCtx.sampleRate * duration;
@@ -60,16 +60,17 @@ export function playClickPop(intensity = 1) {
   const noise = audioCtx.createBufferSource();
   noise.buffer = buffer;
 
-  // Filtro paso-bajo que baja de frecuencia
+  // Filtro paso-bajo con cutoff variable según intensidad
   const filter = audioCtx.createBiquadFilter();
   filter.type = "lowpass";
-  filter.frequency.setValueAtTime(1200, t0);
+  const cutoff = 900 + Math.random() * 600 + intensity * 400;
+  filter.frequency.setValueAtTime(cutoff, t0);
   filter.frequency.exponentialRampToValueAtTime(200, t0 + duration);
 
   // Envolvente
   const env = audioCtx.createGain();
   env.gain.setValueAtTime(0, t0);
-  env.gain.linearRampToValueAtTime(0.4 * intensity, t0 + 0.005);
+  env.gain.linearRampToValueAtTime(Math.min(0.6, 0.4 * intensity), t0 + 0.005);
   env.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
 
   // Pan aleatorio
@@ -83,6 +84,57 @@ export function playClickPop(intensity = 1) {
 
   noise.start(t0);
   noise.stop(t0 + duration);
+
+  // Tono de combo: sube un semitono por cada combo step (capped)
+  if (comboStep > 0) {
+    const tone = audioCtx.createOscillator();
+    tone.type = "triangle";
+    const baseFreq = 220 * Math.pow(1.0595, Math.min(comboStep, 36));
+    tone.frequency.setValueAtTime(baseFreq, t0);
+    tone.frequency.exponentialRampToValueAtTime(baseFreq * 1.4, t0 + 0.05);
+
+    const toneEnv = audioCtx.createGain();
+    toneEnv.gain.setValueAtTime(0, t0);
+    toneEnv.gain.linearRampToValueAtTime(0.08 * Math.min(1, intensity), t0 + 0.005);
+    toneEnv.exponentialRampToValueAtTime(0.001, t0 + 0.08);
+
+    tone.connect(toneEnv);
+    toneEnv.connect(masterGain);
+    tone.start(t0);
+    tone.stop(t0 + 0.09);
+  }
+}
+
+/**
+ * Chime de crítico — arpegio rápido de 2 notas en octava alta.
+ */
+export function playCritChime() {
+  if (isMuted) return;
+  ensureContext();
+
+  const notes = [880, 1318.5]; // A5, E6
+  const t0 = audioCtx.currentTime;
+
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = "square";
+    osc.frequency.value = freq;
+
+    const env = audioCtx.createGain();
+    env.gain.setValueAtTime(0, t0 + i * 0.04);
+    env.gain.linearRampToValueAtTime(0.18, t0 + i * 0.04 + 0.005);
+    env.gain.exponentialRampToValueAtTime(0.001, t0 + i * 0.04 + 0.12);
+
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 4000;
+
+    osc.connect(filter);
+    filter.connect(env);
+    env.connect(masterGain);
+    osc.start(t0 + i * 0.04);
+    osc.stop(t0 + i * 0.04 + 0.15);
+  });
 }
 
 /**
