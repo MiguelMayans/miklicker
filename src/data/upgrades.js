@@ -1,116 +1,308 @@
 /**
- * Definición de mejoras (upgrades).
- * Cada mejora puede afectar a un edificio específico, al clic global, o al cursor.
+ * Mejoras.
+ *
+ * Cada módulo tiene una línea de investigación de 10 mejoras con efectos
+ * distintos: duplicadores, cadenas de suministro con el módulo anterior,
+ * economía de escala, vínculos con un módulo socio, bonus por investigación…
+ * Algunas exigen haber investigado antes otras (también de otros módulos).
+ *
+ * Cada mejora: { id, name, sub, desc, cost, icon, tier, kind, requires, unlock(G), effects[] }
+ * `unlock` decide cuándo aparece en el almacén (no si se puede pagar).
  */
 
-export const UPGRADES = [
-  // --- CURSOR ---
-  { id: 'cursor_tier_1', name: 'Actuadores Hidráulicos', description: 'Los actuadores aceleran su ciclo de extracción al doble.', cost: 100, costResource: 'energy', effect: { type: 'cursor_interval', multiplier: 0.5 }, requires: { building: 'cursor', count: 1 } },
-  { id: 'cursor_tier_2', name: 'Servomotores de Precisión', description: 'Motores de alta velocidad duplican la cadencia de extracción.', cost: 500, costResource: 'energy', effect: { type: 'cursor_interval', multiplier: 0.5 }, requires: { building: 'cursor', count: 10 } },
-  { id: 'cursor_power_1', name: 'Conductores Superconductores', description: 'Circuitos superconductores duplican la potencia por extracción.', cost: 300, costResource: 'energy', effect: { type: 'cursor_multiplier', multiplier: 2.15 }, requires: { building: 'cursor', count: 5 } },
-  { id: 'cursor_power_2', name: 'Nanocircuitos Cuánticos', description: 'Arquitectura cuántica duplica la eficiencia energética.', cost: 3000, costResource: 'energy', effect: { type: 'cursor_multiplier', multiplier: 2.35 }, requires: { building: 'cursor', count: 25 } },
+import { BUILDINGS, BUILDINGS_BY_ID } from './buildings.js';
 
-  // --- SOLAR PANEL ---
-  { id: 'solar_tier_1', name: 'Celdas Fotovoltaicas Avanzadas', description: 'Silicio multicristalino de tercera generación. Eficiencia fotovoltaica duplicada.', cost: 200, costResource: 'energy', effect: { type: 'building_multiplier', target: 'solar_panel', multiplier: 2.1 }, requires: { building: 'solar_panel', count: 1 } },
-  { id: 'solar_tier_2', name: 'Concentradores Estelares', description: 'Lentes de Fresnel orbitales. Captación de radiación duplicada.', cost: 1000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'solar_panel', multiplier: 2.25 }, requires: { building: 'solar_panel', count: 10 } },
-  { id: 'solar_tier_3', name: 'Espejos Orbitales', description: 'Red de espejos desplegables. Rendimiento fotovoltaico triplicado.', cost: 5000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'solar_panel', multiplier: 3.2 }, requires: { building: 'solar_panel', count: 50 } },
+const owned = (G, id) => G.buildings[id] ?? 0;
+const num = (x) => String(Math.round(x * 1000) / 1000).replace('.', ',');
+const pc = (x) => `${num(x * 100)}%`;
+const bname = (id) => BUILDINGS_BY_ID.get(id);
 
-  // --- LUNAR MINE ---
-  { id: 'mine_tier_1', name: 'Taladros de Plasma', description: 'Broca de plasma ionizado. Velocidad de perforación duplicada.', cost: 1200, costResource: 'energy', effect: { type: 'building_multiplier', target: 'lunar_mine', multiplier: 2.05 }, requires: { building: 'lunar_mine', count: 1 } },
-  { id: 'mine_tier_2', name: 'Excavadoras Automatizadas', description: 'Flota de vehículos autónomos. Producción minera duplicada.', cost: 6000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'lunar_mine', multiplier: 2.2 }, requires: { building: 'lunar_mine', count: 10 } },
-  { id: 'mine_tier_3', name: 'Núcleo Lunar Fragmentado', description: 'Acceso al manto lunar. Rendimiento de extracción triplicado.', cost: 30000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'lunar_mine', multiplier: 3.15 }, requires: { building: 'lunar_mine', count: 50 } },
+/** Texto legible de un efecto, para el tooltip. */
+export function describeEffect(e) {
+  const b = e.b ? bname(e.b) : null;
+  switch (e.type) {
+    case 'bmult': return `Los ${b.plural} producen ×${num(e.mult)}.`;
+    case 'self': return `Los ${b.plural} producen +${pc(e.pct)} por cada ${b.name.toLowerCase()} que tengas.`;
+    case 'link': {
+      const src = bname(e.src);
+      return `Los ${b.plural} producen +${pc(e.pct)} por cada ${e.per > 1 ? `${e.per} ${src.plural}` : src.name.toLowerCase()}.`;
+    }
+    case 'research': return `Los ${b.plural} producen +${pc(e.pct)} por cada mejora comprada.`;
+    case 'morale': return `Los ${b.plural} producen +${pc(e.pct)} por cada logro conseguido.`;
+    case 'bank': return `Los ${b.plural} producen +${pc(e.pct)} por cada cifra de los créditos que tengas ahorrados.`;
+    case 'runTime': return `${b ? `Los ${b.plural} producen` : 'Producción'} +${pc(e.pct)} por cada minuto de esta partida (máximo +${pc(e.max)}).`;
+    case 'anomBonus': return `Los ${b.plural} producen +${pc(e.pct)} por cada anomalía capturada (en total).`;
+    case 'cost': return `Los ${b.plural} cuestan un ${pc(1 - e.mult)} menos.`;
+    case 'droneClick': return 'Los drones y el clic manual producen el doble.';
+    case 'swarm': return `El clic y cada dron ganan +${num(e.add)} por cada módulo que no sea un dron.`;
+    case 'swarmMult': return `El bonus de enjambre se multiplica ×${num(e.mult)}.`;
+    case 'clickPct': return `Cada clic suma un ${pc(e.pct)} de tu producción por segundo.`;
+    case 'clickMult': return `El clic manual produce ×${num(e.mult)}.`;
+    case 'clickAdd': return `El clic gana +${num(e.add)} por cada ${bname(e.src).name.toLowerCase()}.`;
+    case 'global': return `Producción total +${pc(e.pct)}.`;
+    case 'perTotal': return `Producción total +${pc(e.pct)} por cada ${e.per} módulos que tengas.`;
+    case 'perType': return `Producción total +${pc(e.pct)} por cada tipo de módulo con al menos ${e.min} unidades.`;
+    case 'perUpgrade': return `Producción total +${pc(e.pct)} por cada mejora comprada.`;
+    case 'perAnomaly': return `Producción total +${pc(e.pct)} por cada anomalía capturada (máximo +${pc(e.max)}).`;
+    case 'officer': return `La moral de la tripulación aumenta la producción (×${num(e.factor)} de la moral).`;
+    case 'specialist': return `Los tripulantes producen el doble. Los ${b.plural} ganan +1% por cada ${e.per === 1 ? 'tripulante' : `${e.per} tripulantes`}.`;
+    case 'anomaly': {
+      const parts = [];
+      if (e.freq) parts.push(`las anomalías aparecen ${e.freq === 0.5 ? 'el doble de' : 'más'} a menudo`);
+      if (e.life) parts.push(`duran ×${num(e.life)} en pantalla`);
+      if (e.dur) parts.push(`sus efectos duran ×${num(e.dur)}`);
+      const t = parts.join(', ');
+      return `${t[0].toUpperCase()}${t.slice(1)}.`;
+    }
+    default: return '';
+  }
+}
 
-  // --- HYDRO FARM ---
-  { id: 'hydro_tier_1', name: 'Nutrientes Genéticos', description: 'Secuenciación CRISPR de cianobacterias. Producción biológica duplicada.', cost: 6000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'hydro_farm', multiplier: 2.1 }, requires: { building: 'hydro_farm', count: 1 } },
-  { id: 'hydro_tier_2', name: 'Bioluminiscencia Potenciada', description: 'Ingeniería de proteínas luciferasa. Output luminoso duplicado.', cost: 30000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'hydro_farm', multiplier: 2.3 }, requires: { building: 'hydro_farm', count: 10 } },
+const list = [];
+function add(u) {
+  u.requires = u.requires ?? [];
+  // `reached`: ya se ve en el almacén. `unlock`: además cumple los requisitos y se puede comprar.
+  u.reached = u.unlock;
+  u.unlock = (G) => u.reached(G) && u.requires.every((r) => G.upgrades.has(r));
+  u.desc = u.desc ?? u.effects.map(describeEffect).join(' ');
+  list.push(u);
+}
 
-  // --- DRONE FACTORY ---
-  { id: 'drone_tier_1', name: 'Enjambre Inteligente', description: 'Algoritmos de optimización de ruta. Eficiencia de flota duplicada.', cost: 30000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'drone_factory', multiplier: 2.15 }, requires: { building: 'drone_factory', count: 1 } },
-  { id: 'drone_tier_2', name: 'Red Neuronal Colectiva', description: 'Interconexión neuronal entre drones. Salida de fábrica duplicada.', cost: 150000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'drone_factory', multiplier: 2.25 }, requires: { building: 'drone_factory', count: 10 } },
+// ─── Líneas de investigación por módulo ───
+// Cada módulo tiene un socio temático: sus mejoras VI y VII se vinculan con él.
+const PARTNER = {
+  crew: 'sanctuary', sanctuary: 'crew',
+  hydro: 'xenolab', xenolab: 'hydro',
+  helium: 'refinery', refinery: 'helium',
+  factory: 'freighter', freighter: 'factory',
+  outpost: 'probability', probability: 'outpost',
+  gate: 'multiverse', multiverse: 'gate',
+  chrono: 'reality', reality: 'chrono',
+  antimatter: 'dyson', dyson: 'antimatter',
+  artifact: 'drone',
+};
 
-  // --- FUSION REACTOR ---
-  { id: 'fusion_tier_1', name: 'Plasma Estelar Refinado', description: 'Purificación de isótopos de helio-3. Reactividad del plasma duplicada.', cost: 150000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'fusion_reactor', multiplier: 2.05 }, requires: { building: 'fusion_reactor', count: 1 } },
-  { id: 'fusion_tier_2', name: 'Confinamiento Cuántico', description: 'Campos magnéticos de contención cuántica. Salida del tokamak duplicada.', cost: 750000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'fusion_reactor', multiplier: 2.2 }, requires: { building: 'fusion_reactor', count: 10 } },
+const NAMES = {
+  crew: ['Café de verdad', 'Turnos rotativos', 'Botas magnéticas', 'Camaradería', 'Ascensos internos', 'Retiro espiritual', 'Uniformes de gala', 'Moral de hierro', 'Sindicato estelar', 'Familias a bordo'],
+  hydro: ['Luz de espectro completo', 'Abono de tripulante', 'Algas mutantes', 'Monocultivo masivo', 'Riego por niebla', 'Simbiosis alienígena', 'Cosecha continua', 'Agrónomos sabios', 'Fotosíntesis forzada', 'Jungla en órbita'],
+  helium: ['Brocas de diamante', 'Regolito fertilizado', 'Perforación profunda', 'Minería en cadena', 'Turnos de 26 horas', 'Fundición directa', 'Núcleo lunar', 'Geólogos curiosos', 'Detonación controlada', 'Luna vaciada'],
+  factory: ['Remaches de titanio', 'Piezas de helio', 'Línea de montaje', 'Producción en serie', 'Robots soldadores', 'Contratos de flete', 'Diques secos', 'Manual de ingeniería', 'Montaje en vacío', 'Astillero infinito'],
+  outpost: ['Báscula trucada', 'Ofertas en naves', 'Rutas comerciales', 'Interés compuesto', 'Aranceles', 'Apuestas seguras', 'Monopolio', 'Estudio de mercado', 'Moneda propia', 'Bolsa galáctica'],
+  sanctuary: ['Incienso de nebulosa', 'Diezmo comercial', 'Cánticos armónicos', 'Fe compartida', 'Peregrinaciones', 'Votos de la tripulación', 'Templo flotante', 'Textos sagrados', 'Iluminación', 'El Gran Silencio'],
+  xenolab: ['Jaulas reforzadas', 'Bendición de especímenes', 'Cría selectiva', 'Ecosistema cerrado', 'Domesticación', 'Huertos alienígenas', 'Especie dominante', 'Bestiario completo', 'Mutación dirigida', 'Arca estelar'],
+  freighter: ['Bodegas ampliadas', 'Muestras exóticas', 'Motores de salto', 'Convoyes', 'Seguro de carga', 'Pedidos al por mayor', 'Carguero insignia', 'Cartas de navegación', 'Salto en cadena', 'Flota infinita'],
+  refinery: ['Crisoles cerámicos', 'Combustible de carguero', 'Alto horno', 'Refinado continuo', 'Catalizadores', 'Mineral directo', 'Plasma puro', 'Química avanzada', 'Fusión fría', 'Forja estelar'],
+  gate: ['Anillos calibrados', 'Plasma de arranque', 'Apertura estable', 'Red de puertas', 'Peaje dimensional', 'Atajos al infinito', 'Puerta mayor', 'Topología aplicada', 'Plegado doble', 'En todas partes a la vez'],
+  chrono: ['Péndulos de cuarzo', 'Viaje por la puerta', 'Bucle corto', 'Horas extra', 'Paradoja controlada', 'Ensayo de realidad', 'Eternidad portátil', 'Tiempo acumulado', 'Ayer productivo', 'Fin del tiempo'],
+  antimatter: ['Botellas magnéticas', 'Partículas del pasado', 'Contención doble', 'Aniquilación en cadena', 'Escudos de positrones', 'Alimentar la esfera', 'Reactor gemelo', 'Física prohibida', 'Antisol', 'Vacío perfecto'],
+  dyson: ['Paneles reflectantes', 'Chispa de antimateria', 'Anillo completo', 'Enjambre de espejos', 'Estrella domada', 'Antimateria solar', 'Cáscara total', 'Astrofísica', 'Segunda estrella', 'Galaxia encendida'],
+  probability: ['Dados cargados', 'Suerte solar', 'Trébol de cuatro hojas', 'Ley de los grandes números', 'Sesgo favorable', 'La banca siempre gana', 'Improbabilidad infinita', 'Imán de anomalías', 'Gato de Schrödinger', 'Destino a medida'],
+  artifact: ['Pedestales de resonancia', 'Hallazgos fortuitos', 'Cánticos de cristal', 'Colección creciente', 'Excavación profunda', 'Drones arqueólogos', 'El fragmento perdido', 'Glifos descifrados', 'Unificación', 'Mapa de la Unidad'],
+  reality: ['Prismas pulidos', 'Resonancia de artefactos', 'Constantes ajustadas', 'Reescritura masiva', 'Física a la carta', 'Relojes de realidad', 'Ley propia', 'Metafísica', 'Dios en la máquina', 'Realidad perfecta'],
+  multiverse: ['Burbujas estables', 'Realidades vecinas', 'Colonias espejo', 'Infinitos tú', 'Comercio entre mundos', 'Puertas al todo', 'Multiverso doble', 'Cartografía infinita', 'Yo de otro mundo', 'Todo y nada'],
+};
 
-  // --- CLICK ---
-  { id: 'click_tier_1', name: 'Guantes Dieléctricos', description: 'Protección mejorada. Extracción manual duplica su potencia.', cost: 50, costResource: 'energy', effect: { type: 'click_multiplier', multiplier: 2.1 }, requires: { totalClicks: 10 } },
-  { id: 'click_tier_2', name: 'Acumuladores de Mano', description: 'Almacenamiento portátil. Extracción manual duplica su potencia.', cost: 500, costResource: 'energy', effect: { type: 'click_multiplier', multiplier: 2.25 }, requires: { totalClicks: 100 } },
-  { id: 'click_tier_3', name: 'Guanteletes de Plasma', description: 'Inductores de plasma. Extracción manual triplica su potencia.', cost: 5000, costResource: 'energy', effect: { type: 'click_multiplier', multiplier: 3.15 }, requires: { totalClicks: 1000 } },
-  { id: 'click_tier_4', name: 'Interfaz Neural Directa', description: 'Control cerebral directo. Extracción manual triplica su potencia.', cost: 50000, costResource: 'energy', effect: { type: 'click_multiplier', multiplier: 3.4 }, requires: { totalClicks: 10000 } },
+const LINE_THRESHOLDS = [1, 10, 25, 50, 100, 150, 200, 250, 300, 400];
+const LINE_COST_MULT = [10, 120, 500, 5e4, 5e6, 5e8, 5e11, 5e14, 5e17, 5e23];
 
-  // --- GLOBAL / SYNERGY ---
-  { id: 'global_tier_1', name: 'Red de Distribución Planetaria', description: 'Optimización de la red eléctrica. Salida total de módulos +20%.', cost: 5000, costResource: 'energy', effect: { type: 'global_multiplier', multiplier: 1.22 }, requires: { building: 'solar_panel', count: 50 } },
-  { id: 'global_tier_2', name: 'Matriz Energética Interestelar', description: 'Interconexión de subsistemas. Salida total de módulos +50%.', cost: 500000, costResource: 'energy', effect: { type: 'global_multiplier', multiplier: 1.55 }, requires: { building: 'fusion_reactor', count: 10 } },
-  { id: 'global_tier_3', name: 'Red Cósmica Infinita', description: 'Sincronización perfecta de todos los subsistemas. Salida total ×2.', cost: 50000000, costResource: 'energy', effect: { type: 'global_multiplier', multiplier: 2.08 }, requires: { building: 'singularity', count: 1 } },
+/** Efectos especiales que sustituyen a la plantilla en ciertos módulos. */
+const SPECIAL = {
+  outpost: { 3: [{ type: 'bank', b: 'outpost', pct: 0.06 }] },
+  sanctuary: { 3: [{ type: 'morale', b: 'sanctuary', pct: 0.01 }] },
+  crew: { 7: [{ type: 'morale', b: 'crew', pct: 0.015 }] },
+  chrono: { 7: [{ type: 'runTime', b: 'chrono', pct: 0.02, max: 2 }] },
+  probability: { 7: [{ type: 'anomBonus', b: 'probability', pct: 0.03 }, { type: 'anomaly', freq: 0.9 }] },
+};
 
-  // --- SYNERGY: Solar boosts Mine ---
-  { id: 'synergy_solar_mine', name: 'Reflejo Solar Lunar', description: 'Cada matriz solar aporta +1.15% de eficiencia a las perforadoras lunares.', cost: 2500, costResource: 'energy', effect: { type: 'synergy', source: 'solar_panel', target: 'lunar_mine', bonusPerSource: 0.0115 }, requires: { building: 'solar_panel', count: 25 } },
+for (const b of BUILDINGS) {
+  if (b.id === 'drone') continue;
+  const id = (t) => `${b.id}_t${t}`;
+  const prev = BUILDINGS[b.index - 1].id;
+  const partner = PARTNER[b.id];
+  const template = [
+    [{ type: 'bmult', b: b.id, mult: 2 }],
+    [{ type: 'link', b: b.id, src: prev, pct: 0.02, per: 1 }, { type: 'link', b: prev, src: b.id, pct: 0.004, per: 1 }],
+    [{ type: 'bmult', b: b.id, mult: 2 }],
+    [{ type: 'self', b: b.id, pct: 0.008 }],
+    [{ type: 'bmult', b: b.id, mult: 2 }, { type: 'cost', b: b.id, mult: 0.9 }],
+    [{ type: 'link', b: b.id, src: partner, pct: 0.005, per: 1 }, { type: 'link', b: partner, src: b.id, pct: 0.005, per: 1 }],
+    [{ type: 'bmult', b: b.id, mult: 3 }],
+    [{ type: 'research', b: b.id, pct: 0.01 }],
+    [{ type: 'bmult', b: b.id, mult: 2 }],
+    [{ type: 'self', b: b.id, pct: 0.006 }],
+  ];
+  const requires = {
+    2: [id(1)],
+    4: [id(3)],
+    6: partner !== 'drone' ? [id(5), `${partner}_t5`] : [id(5)],
+    8: [id(7)],
+    9: [id(8)],
+  };
+  LINE_THRESHOLDS.forEach((need, t) => {
+    add({
+      id: id(t),
+      name: NAMES[b.id][t],
+      sub: b.name,
+      cost: b.baseCost * LINE_COST_MULT[t],
+      icon: b.id,
+      tier: t,
+      kind: 'building',
+      requires: requires[t],
+      unlock: (G) => owned(G, b.id) >= need,
+      effects: SPECIAL[b.id]?.[t] ?? template[t],
+    });
+  });
+}
 
-  // --- SYNERGY: Mine boosts Hydro ---
-  { id: 'synergy_mine_hydro', name: 'Reciclaje de Minerales', description: 'Cada perforadora lunar aporta +1.2% de nutrientes a los biodomos.', cost: 12000, costResource: 'energy', effect: { type: 'synergy', source: 'lunar_mine', target: 'hydro_farm', bonusPerSource: 0.012 }, requires: { building: 'lunar_mine', count: 25 } },
-
-  // --- DARK MATTER HARVESTER ---
-  { id: 'dark_matter_tier_1', name: 'Filtros de Radiación Exótica', description: 'Membranas de captura selectiva. Rendimiento del cosechador duplicado.', cost: 750000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'dark_matter_harvester', multiplier: 2.05 }, requires: { building: 'dark_matter_harvester', count: 1 } },
-  { id: 'dark_matter_tier_2', name: 'Núcleo de Materia Exótica', description: 'Condensador de partículas WIMP. Captación de materia oscura duplicada.', cost: 3750000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'dark_matter_harvester', multiplier: 2.2 }, requires: { building: 'dark_matter_harvester', count: 10 } },
-
-  // --- NEBULA COMPRESSOR ---
-  { id: 'nebula_tier_1', name: 'Lentes Gravitacionales', description: 'Enfoque gravitatorio de nubes de hidrógeno. Compresión duplicada.', cost: 3750000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'nebula_compressor', multiplier: 2.15 }, requires: { building: 'nebula_compressor', count: 1 } },
-  { id: 'nebula_tier_2', name: 'Reactor de Condensación Estelar', description: 'Ciclo termodinámico cerrado. Output del compresor nebuloso duplicado.', cost: 18750000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'nebula_compressor', multiplier: 2.3 }, requires: { building: 'nebula_compressor', count: 10 } },
-
-  // --- QUANTUM DIMENSION ---
-  { id: 'quantum_tier_1', name: 'Estabilizador de Entrelazamiento', description: 'Mantenimiento coherente del entrelazamiento. Canal interdimensional duplicado.', cost: 20000000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'quantum_dimension', multiplier: 2.05 }, requires: { building: 'quantum_dimension', count: 1 } },
-  { id: 'quantum_tier_2', name: 'Puente de Einstein-Rosen', description: 'Agujeros de gusano microscópicos estabilizados. Flujo entrópico duplicado.', cost: 100000000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'quantum_dimension', multiplier: 2.25 }, requires: { building: 'quantum_dimension', count: 10 } },
-
-  // --- SINGULARITY ---
-  { id: 'singularity_tier_1', name: 'Anillo de Masa Negativa', description: 'Materia con masa negativa rodea la singularidad. Potencia extrema duplicada.', cost: 125000000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'singularity', multiplier: 2.15 }, requires: { building: 'singularity', count: 1 } },
-  { id: 'singularity_tier_2', name: 'Horizonte de Sucesos Modulado', description: 'Modulación activa del horizonte. Rendimiento singular triplicado.', cost: 625000000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'singularity', multiplier: 3.15 }, requires: { building: 'singularity', count: 10 } },
-
-  // --- DYSON SPHERE ---
-  { id: 'dyson_tier_1', name: 'Revestimiento Metamaterial', description: 'Capa absorbente de espectro completo. Captación estelar duplicada.', cost: 750000000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'dyson_sphere', multiplier: 2.05 }, requires: { building: 'dyson_sphere', count: 1 } },
-  { id: 'dyson_tier_2', name: 'Células de Conversión Total', description: 'Conversión directa masa-energía. Salida de la esfera duplicada.', cost: 3750000000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'dyson_sphere', multiplier: 2.25 }, requires: { building: 'dyson_sphere', count: 10 } },
-
-  // --- ANTIMATTER ---
-  { id: 'antimatter_tier_1', name: 'Campos Magnéticos Reforzados', description: 'Contención magnética de octupolo. Almacenamiento de antipartículas duplicado.', cost: 4500000000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'antimatter', multiplier: 2.15 }, requires: { building: 'antimatter', count: 1 } },
-  { id: 'antimatter_tier_2', name: 'Aniquilación Direccional', description: 'Inyección controlada de positrones. Output por aniquilación duplicado.', cost: 22500000000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'antimatter', multiplier: 2.3 }, requires: { building: 'antimatter', count: 10 } },
-
-  // --- WORMHOLE ---
-  { id: 'wormhole_tier_1', name: 'Estabilizador Topológico', description: 'Sutura espaciotemporal estable. Apertura de portales duplicada.', cost: 30000000000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'wormhole', multiplier: 2.05 }, requires: { building: 'wormhole', count: 1 } },
-  { id: 'wormhole_tier_2', name: 'Red de Agujeros Entrelazados', description: 'Constelación de portales sincronizados. Flujo energético duplicado.', cost: 150000000000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'wormhole', multiplier: 2.2 }, requires: { building: 'wormhole', count: 10 } },
-
-  // --- TIME CRYSTAL ---
-  { id: 'time_crystal_tier_1', name: 'Resonancia Temporal Sincrónica', description: 'Alineación de fases retrocausales. Generación cristalina duplicada.', cost: 200000000000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'time_crystal', multiplier: 2.15 }, requires: { building: 'time_crystal', count: 1 } },
-  { id: 'time_crystal_tier_2', name: 'Núcleo de Paradoja Estabilizada', description: 'Bucle causal autosostenible. Rendimiento temporal triplicado.', cost: 1000000000000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'time_crystal', multiplier: 3.2 }, requires: { building: 'time_crystal', count: 10 } },
-
-  // --- UNIVERSAL COMPUTER ---
-  { id: 'universal_tier_1', name: 'Subrutinas de Optimización Galáctica', description: 'Algoritmos de asignación óptima. Cálculo galáctico duplicado.', cost: 1250000000000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'universal_computer', multiplier: 2.05 }, requires: { building: 'universal_computer', count: 1 } },
-  { id: 'universal_tier_2', name: 'Matriz Computacional Hipercubica', description: 'Procesamiento en 11 dimensiones. Output computacional triplicado.', cost: 6250000000000, costResource: 'energy', effect: { type: 'building_multiplier', target: 'universal_computer', multiplier: 3.15 }, requires: { building: 'universal_computer', count: 10 } },
-
-  // --- CRIT SYSTEM (desbloqueado con clics) ---
-  { id: 'crit_unlock', name: 'Puntos de Resonancia Crítica', description: 'Desbloquea golpes críticos: 5% de probabilidad de ×5 en extracción manual.', cost: 800, costResource: 'energy', effect: { type: 'crit_chance', value: 0.05 }, requires: { totalClicks: 250 } },
-  { id: 'crit_chance_2', name: 'Calibrado de Frecuencia Estelar', description: 'Probabilidad de crítico +10% (total 15%).', cost: 25000, costResource: 'energy', effect: { type: 'crit_chance', value: 0.10 }, requires: { totalClicks: 2500 } },
-  { id: 'crit_chance_3', name: 'Sobrecarga Armónica', description: 'Probabilidad de crítico +15% (total 30%).', cost: 1500000, costResource: 'energy', effect: { type: 'crit_chance', value: 0.15 }, requires: { totalClicks: 15000 } },
-  { id: 'crit_amplifier_1', name: 'Convergencia de Plasma Puro', description: 'Multiplicador de crítico ×2 (de ×5 a ×10).', cost: 12000, costResource: 'energy', effect: { type: 'crit_multiplier', multiplier: 2 }, requires: { totalClicks: 1000 } },
-  { id: 'crit_amplifier_2', name: 'Detonación Singular', description: 'Multiplicador de crítico ×2 (×10 → ×20).', cost: 850000, costResource: 'energy', effect: { type: 'crit_multiplier', multiplier: 2 }, requires: { totalClicks: 10000 } },
-
-  // --- COMBO SYSTEM ---
-  { id: 'combo_cap_1', name: 'Sinergia Cinética', description: 'Aumenta el tope de combo a 100 y sube cada paso a +7% (era +5%).', cost: 5000, costResource: 'energy', effect: { type: 'combo_cap', value: 100, step: 0.07 }, requires: { totalClicks: 500 } },
-  { id: 'combo_cap_2', name: 'Ritmo de Batalla Estelar', description: 'Combo tope 200, cada paso +10%.', cost: 400000, costResource: 'energy', effect: { type: 'combo_cap', value: 200, step: 0.10 }, requires: { totalClicks: 8000 } },
-
-  // --- ABILITY UNLOCKS ---
-  { id: 'ability_energize', name: 'Protocolo ENERGIZE', description: 'Desbloquea ENERGIZE: los próximos 10 clics tras activarlo valen ×10 y reducen la temperatura del núcleo.', cost: 50000, costResource: 'energy', effect: { type: 'ability_unlock', ability: 'energize' }, requires: { totalClicks: 1000 } },
-  { id: 'ability_purge', name: 'Protocolo PURGE', description: 'Desbloquea PURGE: ventila el reactor y resetea la temperatura al instante (costa: 10% de energía).', cost: 120000, costResource: 'energy', effect: { type: 'ability_unlock', ability: 'purge' }, requires: { totalClicks: 5000 } },
-  { id: 'ability_overload', name: 'Protocolo OVERLOAD', description: 'Desbloquea OVERLOAD: ×3 producción durante 15s, pero la temperatura sube 3× más rápido. Riesgo extremo.', cost: 2000000, costResource: 'energy', effect: { type: 'ability_unlock', ability: 'overload' }, requires: { totalClicks: 25000 } },
-
-  // --- TRADE-OFF SYNERGIES (sinergias con riesgo) ---
-  { id: 'tradeoff_overclock', name: 'Sobrecalentamiento Controlado', description: 'Forzar el rendimiento de los subsistemas: +50% producción total, pero la temperatura sube un 30% más rápido.', cost: 250000, costResource: 'energy', effect: { type: 'tradeoff', productionMultiplier: 1.5, heatMultiplier: 1.3 }, requires: { building: 'fusion_reactor', count: 5 } },
-  { id: 'tradeoff_brutal_clicks', name: 'Extracción Brutal', description: 'Prioriza la extracción manual: +100% poder de clic, pero la producción pasiva baja un 15%.', cost: 500000, costResource: 'energy', effect: { type: 'tradeoff', clickMultiplier: 2.0, productionMultiplier: 0.85 }, requires: { totalClicks: 10000 } },
-  { id: 'tradeoff_forced_cooling', name: 'Refrigeración Forzada', description: 'Sistemas de enfriamiento agresivos: la temperatura sube un 40% más lento, pero la producción baja un 10%.', cost: 750000, costResource: 'energy', effect: { type: 'tradeoff', productionMultiplier: 0.9, heatMultiplier: 0.6 }, requires: { building: 'fusion_reactor', count: 10 } },
-
-  // --- COSMIC TECH TREE (coste en Datos Cósmicos) ---
-  { id: 'cosmic_click_1', name: 'Guantelete de Neutrinos', description: 'Aceleradores de partículas elementales aumentan la extracción manual un 50%.', cost: 10, costResource: 'cosmicData', effect: { type: 'click_multiplier', multiplier: 1.5 }, requires: { totalClicks: 5000 } },
-  { id: 'cosmic_global_1', name: 'Red de Distribución Cósmica', description: 'Interconexión interestelar perfecta. +25% de producción total.', cost: 25, costResource: 'cosmicData', effect: { type: 'global_multiplier', multiplier: 1.25 }, requires: { building: 'dyson_sphere', count: 1 } },
-  { id: 'cosmic_crit_1', name: 'Resonancia Estelar Crítica', description: 'Sintoniza el núcleo con frecuencias estelares. +10% probabilidad de crítico.', cost: 50, costResource: 'cosmicData', effect: { type: 'crit_chance', value: 0.10 }, requires: { totalClicks: 25000 } },
-  { id: 'cosmic_prestige_1', name: 'Eficiencia de Datos Cósmicos', description: 'Cada Dato Cósmico otorga +7% de multiplicador en lugar de +5%.', cost: 100, costResource: 'cosmicData', effect: { type: 'prestige_efficiency', multiplier: 1.4 }, requires: { building: 'singularity', count: 1 } },
+// ─── Drones: duplican drones y clic; luego el "enjambre" escala con el resto de módulos ───
+const DRONE_UPGRADES = [
+  [1, 100, 'Brazos reforzados', [{ type: 'droneClick', mult: 2 }]],
+  [1, 500, 'Servos de titanio', [{ type: 'droneClick', mult: 2 }]],
+  [10, 1e4, 'Doble articulación', [{ type: 'droneClick', mult: 2 }]],
+  [25, 1e5, 'Enjambre coordinado', [{ type: 'swarm', add: 0.1 }]],
+  [50, 1e7, 'Mente colmena', [{ type: 'swarmMult', mult: 5 }]],
+  [100, 1e8, 'Red de enjambres', [{ type: 'swarmMult', mult: 10 }]],
+  [150, 1e9, 'Enjambre planetario', [{ type: 'swarmMult', mult: 20 }]],
+  [200, 1e10, 'Enjambre sistémico', [{ type: 'swarmMult', mult: 20 }]],
+  [250, 1e13, 'Enjambre galáctico', [{ type: 'swarmMult', mult: 20 }]],
+  [300, 1e16, 'Enjambre intergaláctico', [{ type: 'swarmMult', mult: 20 }]],
+  [350, 1e19, 'Enjambre multiversal', [{ type: 'swarmMult', mult: 20 }]],
 ];
+DRONE_UPGRADES.forEach(([need, cost, name, effects], t) => {
+  add({
+    id: `drone_t${t}`, name, sub: 'Dron de minería', cost,
+    icon: 'drone', tier: t, kind: 'building',
+    requires: t >= 4 ? [`drone_t${t - 1}`] : [],
+    unlock: (G) => owned(G, 'drone') >= need,
+    effects,
+  });
+});
 
-export const UPGRADES_BY_ID = new Map(UPGRADES.map((u) => [u.id, u]));
+// ─── Guanteletes: el clic escala con la producción ───
+const GAUNTLETS = [
+  'Guantes de presión', 'Guantelete de hierro meteórico', 'Guantelete de titanio',
+  'Guantelete de neutronio', 'Guantelete de vacío', 'Guantelete Starborn',
+  'Toque de la Unidad', 'Mano del creador',
+];
+GAUNTLETS.forEach((name, t) => {
+  const need = 1e3 * 100 ** t;
+  add({
+    id: `click_t${t}`, name, sub: 'Extracción manual',
+    cost: 5e4 * 100 ** t, icon: 'gauntlet', tier: t, kind: 'click',
+    unlock: (G) => G.handmadeRun >= need,
+    effects: [{ type: 'clickPct', pct: 0.01 }],
+  });
+});
+
+// ─── Especialistas: tripulantes ×2 y el módulo gana +1% por cada N tripulantes ───
+const SPECIALISTS = [
+  'agrónomos', 'mineros', 'ingenieros', 'comerciantes', 'devotos', 'xenobiólogos',
+  'estibadores', 'alquimistas', 'saltadores', 'cronistas', 'de contención', 'solares',
+  'afortunados', 'arqueólogos', 'demiurgos', 'infinitos',
+];
+BUILDINGS.slice(2).forEach((b, i) => {
+  add({
+    id: `spec_${b.id}`, name: `Tripulantes ${SPECIALISTS[i]}`, sub: 'Especialistas',
+    cost: b.baseCost * 50, icon: 'crew', tier: Math.min(10, i), kind: 'specialist',
+    unlock: (G) => owned(G, b.id) >= 15 && owned(G, 'crew') >= 1,
+    effects: [{ type: 'specialist', b: b.id, per: b.index - 1 }],
+  });
+});
+
+// ─── Investigación de colonia: bonus globales que dependen de cómo juegas ───
+const total = (G) => Object.values(G.buildings).reduce((a, c) => a + c, 0);
+const types = (G, min) => Object.values(G.buildings).filter((c) => c >= min).length;
+add({ id: 'res_teach', name: 'Clases de puntería', sub: 'Investigación', cost: 6e4, icon: 'chip', tier: 0, kind: 'research',
+  unlock: (G) => owned(G, 'crew') >= 15 && G.clicksRun >= 200,
+  effects: [{ type: 'clickAdd', src: 'crew', add: 0.5 }] });
+add({ id: 'res_urban', name: 'Planificación urbana', sub: 'Investigación', cost: 1e6, icon: 'chip', tier: 1, kind: 'research',
+  unlock: (G) => total(G) >= 100,
+  effects: [{ type: 'perTotal', pct: 0.01, per: 25 }] });
+add({ id: 'res_diverse', name: 'Diversificación', sub: 'Investigación', cost: 5e7, icon: 'chip', tier: 2, kind: 'research',
+  requires: ['res_urban'],
+  unlock: (G) => types(G, 10) >= 6,
+  effects: [{ type: 'perType', pct: 0.03, min: 10 }] });
+add({ id: 'res_anom', name: 'Archivo de anomalías', sub: 'Investigación', cost: 3e8, icon: 'chip', tier: 3, kind: 'research',
+  unlock: (G) => G.anomaliesAll >= 5,
+  effects: [{ type: 'perAnomaly', pct: 0.01, max: 0.75 }] });
+add({ id: 'res_watch', name: 'Turnos de guardia', sub: 'Investigación', cost: 2e8, icon: 'chip', tier: 4, kind: 'research',
+  unlock: (G) => G.earnedRun >= 5e7 && Date.now() - G.runStart >= 20 * 60 * 1000,
+  effects: [{ type: 'runTime', pct: 0.005, max: 0.3 }] });
+add({ id: 'res_library', name: 'Biblioteca técnica', sub: 'Investigación', cost: 1e10, icon: 'chip', tier: 5, kind: 'research',
+  requires: ['res_diverse'],
+  unlock: (G) => G.upgrades.size >= 40,
+  effects: [{ type: 'perUpgrade', pct: 0.005 }] });
+add({ id: 'res_metro', name: 'Ecumenópolis', sub: 'Investigación', cost: 1e13, icon: 'chip', tier: 6, kind: 'research',
+  requires: ['res_urban'],
+  unlock: (G) => total(G) >= 1000,
+  effects: [{ type: 'perTotal', pct: 0.02, per: 25 }] });
+
+// ─── Suministros: comida para la tripulación, cada uno con su efecto ───
+const SUPPLIES = [
+  ['Raciones de campaña', { type: 'global', pct: 0.05 }],
+  ['Café de cosecha lunar', { type: 'clickMult', mult: 1.5 }],
+  ['Barritas de algas', { type: 'global', pct: 0.05 }],
+  ['Té de nebulosa', { type: 'anomaly', life: 1.2 }],
+  ['Fideos de gravedad cero', { type: 'global', pct: 0.08 }],
+  ['Sidra de Marte', { type: 'clickMult', mult: 1.5 }],
+  ['Pan de esporas', { type: 'global', pct: 0.08 }],
+  ['Chocolate de asteroide', { type: 'anomaly', dur: 1.1 }],
+  ['Queso de cabra marciana', { type: 'global', pct: 0.1 }],
+  ['Curry de neón', { type: 'clickMult', mult: 2 }],
+  ['Helado de nitrógeno', { type: 'global', pct: 0.1 }],
+  ['Dumplings orbitales', { type: 'anomaly', freq: 0.9 }],
+  ['Tarta de cometa', { type: 'global', pct: 0.15 }],
+  ['Vino de cráter', { type: 'global', pct: 0.15 }],
+  ['Galletas de la Constelación', { type: 'clickMult', mult: 2 }],
+  ['Caramelos de plasma', { type: 'global', pct: 0.15 }],
+  ['Mermelada de quásar', { type: 'anomaly', dur: 1.1 }],
+  ['Sopa de materia oscura', { type: 'global', pct: 0.2 }],
+  ['Turrón de antimateria', { type: 'global', pct: 0.2 }],
+  ['Croquetas de púlsar', { type: 'clickMult', mult: 2 }],
+  ['Bocadillo de agujero negro', { type: 'global', pct: 0.2 }],
+  ['Paella de supernova', { type: 'global', pct: 0.25 }],
+  ['Tortilla cuántica', { type: 'anomaly', freq: 0.9 }],
+  ['Banquete de la Unidad', { type: 'global', pct: 0.3 }],
+];
+SUPPLIES.forEach(([name, effect], i) => {
+  const cost = 5e4 * 6 ** i;
+  add({
+    id: `supply_${i}`, name, sub: 'Suministros', cost,
+    icon: 'supply', tier: Math.floor(i / 2.4), kind: 'supply',
+    unlock: (G) => G.earnedRun >= cost * 0.5,
+    effects: [effect],
+  });
+});
+
+// ─── Oficiales: multiplican la producción según la moral (logros) ───
+const OFFICERS = [
+  ['Contramaestre', 12, 9e6, 0.1],
+  ['Sargento de cubierta', 25, 9e9, 0.125],
+  ['Teniente de vuelo', 40, 9e13, 0.15],
+  ['Capitán', 55, 9e17, 0.175],
+  ['Comandante', 70, 9e21, 0.2],
+  ['Almirante', 90, 9e25, 0.2],
+  ['Almirante de flota', 110, 9e29, 0.2],
+];
+OFFICERS.forEach(([name, achv, cost, factor], t) => {
+  add({
+    id: `officer_${t}`, name, sub: 'Oficialidad', cost,
+    icon: 'officer', tier: t, kind: 'officer',
+    requires: t > 0 ? [`officer_${t - 1}`] : [],
+    unlock: (G) => G.achievements.size >= achv,
+    effects: [{ type: 'officer', factor }],
+  });
+});
+
+// ─── Anomalías ───
+add({ id: 'anom_0', name: 'Escáner de largo alcance', sub: 'Anomalías', cost: 777777777, icon: 'anomaly', tier: 2, kind: 'anomaly',
+  unlock: (G) => G.anomaliesAll >= 7, effects: [{ type: 'anomaly', freq: 0.5, life: 2 }] });
+add({ id: 'anom_1', name: 'Sintonizador de fase', sub: 'Anomalías', cost: 77777777777, icon: 'anomaly', tier: 5, kind: 'anomaly',
+  requires: ['anom_0'],
+  unlock: (G) => G.anomaliesAll >= 27, effects: [{ type: 'anomaly', freq: 0.5, life: 2 }] });
+add({ id: 'anom_2', name: 'Estabilizador de anomalías', sub: 'Anomalías', cost: 77777777777777, icon: 'anomaly', tier: 8, kind: 'anomaly',
+  requires: ['anom_1'],
+  unlock: (G) => G.anomaliesAll >= 77, effects: [{ type: 'anomaly', dur: 2 }] });
+
+export const UPGRADES = list;
+export const UPGRADES_BY_ID = new Map(list.map((u) => [u.id, u]));

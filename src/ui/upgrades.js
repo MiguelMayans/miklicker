@@ -294,11 +294,11 @@ async function purchaseUpgrade(upgradeId) {
 }
 
 function getUpgradeCardClasses(canAfford) {
-  const base = 'p-3 border-[3px] bg-[#eae7e0] block-interactive';
+  const base = 'p-3 border-[3px] bg-[#e8e4dc] b-interactive';
   if (canAfford) {
-    return `${base} border-[#0f0f0f] border-l-[5px] cursor-pointer`;
+    return `${base} border-[#0f0f0f] border-l-[6px] cursor-pointer`;
   }
-  return `${base} border-[#a09c94] opacity-40 cursor-not-allowed`;
+  return `${base} border-[#8a8a8a] opacity-40 cursor-not-allowed`;
 }
 
 function getResourceAccent(costResource) {

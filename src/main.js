@@ -1,50 +1,26 @@
 /**
- * Bootstrap de la aplicación.
- * Inicializa estado, carga partida, monta UI y arranca el game loop.
+ * Colonia Estelar — arranque.
  */
 
 import './style.css';
-import { getState, updateState } from './state.js';
-import { load, save, startAutoSave } from './engine/saveLoad.js';
-import { start, pause, resume, processOfflineTime } from './engine/gameLoop.js';
-import { initUI } from './ui/renderer.js';
-import { initRandomEvents } from './engine/randomEvents.js';
-import { initStarfield } from './ui/starfield.js';
-import { initParticles } from './ui/particles.js';
-import { initMilestonePopup } from './ui/milestonePopup.js';
-import { emit } from './utils/eventBus.js';
+import { G, load, save } from './core/state.js';
+import { recompute, applyStartBonuses } from './game/engine.js';
+import { mountApp } from './ui/app.js';
+import { forceAnomaly } from './game/anomalies.js';
+import { addEntry } from './game/life.js';
 
-function bootstrap() {
-  const loaded = load();
-
-  if (!loaded) {
-    updateState({ lastTick: Date.now() });
-    emit('newGame');
-  } else {
-    processOfflineTime();
-    emit('gameResumed');
-  }
-
-  initParticles(document.body);
-  initMilestonePopup(document.body);
-  initUI();
-  initStarfield();
-  initRandomEvents();
-  startAutoSave();
-  start();
-
-  window.addEventListener('beforeunload', () => {
-    save();
-  });
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      pause();
-    } else {
-      processOfflineTime();
-      resume();
-    }
-  });
+const { loaded, offlineSeconds } = load();
+if (!loaded) {
+  applyStartBonuses();
+  addEntry('Aterrizas en una luna del gigante gaseoso. Solo tienes un planeta enorme delante y muchas ganas.', 'milestone');
 }
+recompute();
+mountApp({ offlineSeconds: loaded ? offlineSeconds : 0, isNew: !loaded });
 
-bootstrap();
+addEventListener('beforeunload', save);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) save();
+});
+
+// Útil para depurar desde la consola.
+window.colonia = { G, forceAnomaly };

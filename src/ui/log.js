@@ -17,13 +17,13 @@ export function addLogEntry(message, type = 'info') {
 
   const entry = document.createElement('div');
   const colorMap = {
-    info: 'text-[#3a3a35]',
-    success: 'text-[#06b6d4]',
-    warning: 'text-[#dc2626]',
-    event: 'text-[#0f0f0f]',
+    info: 'text-[#8a8a8a]',
+    success: 'text-[#22d3ee]',
+    warning: 'text-[#ef4444]',
+    event: 'text-[#e8e4dc]',
   };
 
-  entry.className = `text-base font-mono ${colorMap[type] ?? colorMap.info}`;
+  entry.className = `text-sm font-mono ${colorMap[type] ?? colorMap.info}`;
   entry.textContent = `> ${message}`;
 
   logContainer.appendChild(entry);

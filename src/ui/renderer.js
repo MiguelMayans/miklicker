@@ -1,8 +1,7 @@
 /**
- * Renderer — Puesto de Mando Espacial.
- * Layout fijo en viewport (sin scroll de página).
- * Fondo oscuro cálido, paneles blancos neobrutalistas.
- * ENERGÍA como display principal grande.
+ * Renderer — Puesto de Mando Espacial Brutalista-Retrofuturista.
+ * Layout responsive con scroll, grid asimétrico y paneles pesados.
+ * Todos los IDs se mantienen para compatibilidad con el engine.
  */
 
 import { getState, updateState } from "../state.js";
@@ -70,10 +69,10 @@ export function initUI() {
 
   addRandomLog("first_click", {}, "info");
 
-  // Intervalo propio para telemetría (1s) — uptime, temp, eff, o2 fluctúan en vivo
   if (telemetryInterval) clearInterval(telemetryInterval);
   telemetryInterval = setInterval(() => {
     updateTelemetry();
+    updateFooterClock();
   }, 1000);
 }
 
@@ -87,184 +86,234 @@ function addOverlays() {
   const vignette = document.createElement("div");
   vignette.id = "vignette-overlay";
   document.body.appendChild(vignette);
+
+  const noise = document.createElement("div");
+  noise.className = "noise-overlay";
+  document.body.appendChild(noise);
 }
 
 function renderLayout() {
   const app = document.getElementById("app");
   app.innerHTML = `
-    <div class="h-screen w-full overflow-hidden flex flex-col p-2 lg:p-3 bg-[#1c1917]">
-      <div class="flex-1 flex flex-col max-w-[1280px] mx-auto w-full gap-2">
+    <div class="min-h-screen w-full bg-[#1a1816] text-[#0f0f0f] font-mono pb-8">
 
-        <!-- HEADER -->
-        <header class="shrink-0 flex items-center justify-between px-4 py-2 bg-[#e0ddd6] border-[3px] border-black">
-          <div class="flex items-center gap-2">
-            <div class="w-2.5 h-2.5 rounded-full bg-[#16a34a] animate-indicator"></div>
-            <div>
-              <h1 class="text-lg font-extrabold tracking-tight text-black font-space">SECC-01 // COLONIA ESTELAR</h1>
-              <p class="text-xs font-bold text-[#777777] uppercase tracking-[0.15em]">Puesto de Mando — Unidad de Potencia</p>
+      <!-- STICKY HEADER -->
+      <header class="sticky top-0 z-50 bg-[#e8e4dc] border-b-[5px] border-black">
+        <div class="max-w-[1400px] mx-auto px-3 py-2 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="flex items-center gap-1.5 shrink-0">
+              <div class="w-3 h-3 bg-[#16a34a] animate-indicator border border-black"></div>
+              <div class="w-3 h-3 bg-[#00b4d8] border border-black"></div>
+              <div class="w-3 h-3 bg-[#facc15] border border-black"></div>
+              <div class="w-3 h-3 bg-[#ef4444] border border-black"></div>
+            </div>
+            <div class="min-w-0">
+              <h1 class="text-lg md:text-xl font-extrabold tracking-tight font-display text-black truncate">SECC-01 // COLONIA ESTELAR</h1>
+              <p class="text-[10px] font-bold text-[#555555] uppercase tracking-[0.2em] truncate">Puesto de Mando — Unidad de Potencia</p>
             </div>
           </div>
-          <div class="flex items-center gap-2">
-            <button id="mute-btn" class="text-xs font-extrabold text-[#444444] hover:text-black uppercase tracking-wider px-4 py-2 border-[3px] border-black bg-[#e0ddd6] hover:bg-[#d4d0c8] block-interactive" title="Silenciar/Activar sonido">🔊</button>
-            <button id="export-btn" class="text-xs font-extrabold text-[#444444] hover:text-black uppercase tracking-wider px-4 py-2 border-[3px] border-black bg-[#e0ddd6] hover:bg-[#d4d0c8] block-interactive">Exportar</button>
-            <button id="reset-btn" class="text-xs font-extrabold text-[#dc2626] hover:text-white uppercase tracking-wider px-4 py-2 border-[3px] border-[#dc2626] bg-[#e0ddd6] hover:bg-[#dc2626] block-interactive">Reiniciar</button>
+          <div class="flex items-center gap-2 shrink-0">
+            <button id="mute-btn" class="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 border-[3px] border-black bg-[#e8e4dc] b-interactive" title="Silenciar/Activar sonido">🔊</button>
+            <button id="export-btn" class="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 border-[3px] border-black bg-[#e8e4dc] b-interactive">Exportar</button>
+            <button id="reset-btn" class="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 border-[3px] border-[#ef4444] bg-[#e8e4dc] text-[#ef4444] hover:bg-[#ef4444] hover:text-white b-interactive">Reiniciar</button>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <!-- MAIN: REACTOR + ENERGY (panel prominente) -->
-        <div id="main-panel" class="shrink-0 bg-[#e0ddd6] border-[3px] border-black flex items-stretch min-h-[140px] hud-bracket hud-bracket-inv panel-glow">
-          <!-- LEFT: REACTOR ZONE -->
-          <div id="reactor-zone" class="flex-[70] flex flex-col p-3 min-w-0 cursor-pointer">
-            <div id="reactor-root" class="flex-1 min-h-0"></div>
+      <!-- MAIN CONTENT -->
+      <main class="max-w-[1400px] mx-auto px-3 py-4 space-y-4">
+
+        <!-- SECTION LABEL -->
+        <div class="flex items-center gap-3">
+          <div class="h-[5px] w-16 bg-black"></div>
+          <span class="text-[10px] font-extrabold text-[#555555] uppercase tracking-[0.3em]">SEC-01 // Núcleo de Ignición</span>
+          <div class="flex-1 h-[5px] bg-black"></div>
+        </div>
+
+        <!-- HERO: REACTOR + ENERGY -->
+        <section class="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4 items-stretch">
+
+          <!-- REACTOR ZONE -->
+          <div id="reactor-zone" class="relative bg-[#e8e4dc] border-[5px] border-black b-shadow hud-corner cursor-pointer select-none overflow-hidden">
+            <div class="absolute inset-0 bg-grid pointer-events-none"></div>
+            <div class="absolute top-0 left-0 right-0 h-2 bg-[repeating-linear-gradient(45deg,#0f0f0f_0px,#0f0f0f_8px,#facc15_8px,#facc15_16px)]"></div>
+            <div id="reactor-root" class="relative min-h-[280px] md:min-h-[320px] lg:min-h-[360px] p-4 pt-6 flex flex-col"></div>
+
             <!-- COMBO METER -->
-            <div id="combo-meter" class="shrink-0 px-1 mb-1 opacity-0 transition-opacity duration-200">
+            <div id="combo-meter" class="relative z-10 px-4 pb-2 opacity-0 transition-opacity duration-200">
               <div class="flex items-center gap-2">
-                <span class="text-[9px] font-extrabold text-[#777777] uppercase tracking-wider shrink-0">Combo</span>
-                <div class="flex-1 h-2 border-[2px] border-black bg-[#d4d0c8] relative overflow-hidden">
+                <span class="text-[9px] font-extrabold text-[#555555] uppercase tracking-wider shrink-0">Combo</span>
+                <div class="flex-1 h-3 border-[3px] border-black bg-[#d8d4cc] relative overflow-hidden">
                   <div id="combo-fill" class="h-full combo-meter" style="width: 0%;"></div>
                 </div>
-                <span id="combo-text" class="text-[10px] font-extrabold text-[#06b6d4] tabular-nums shrink-0 w-16 text-right">×1.00</span>
+                <span id="combo-text" class="text-[10px] font-extrabold text-[#00b4d8] tabular-nums shrink-0 w-16 text-right">×1.00</span>
               </div>
             </div>
-            <!-- ABILITY BUTTONS -->
-            <div id="ability-bar" class="shrink-0 flex gap-1.5 mb-1">
-              <button id="ability-energize" class="ability-btn hidden text-[9px] font-extrabold text-black uppercase tracking-wider px-2 py-1 border-[2px] border-black bg-[#facc15] hover:bg-[#eab308] block-interactive" title="Próximos 10 clics ×10 + reducen T°">⚡ ENERGIZE</button>
-              <button id="ability-purge" class="ability-btn hidden text-[9px] font-extrabold text-black uppercase tracking-wider px-2 py-1 border-[2px] border-black bg-[#60a5fa] hover:bg-[#3b82f6] block-interactive" title="Resetea T° — cuesta 10% energía">❄ PURGE</button>
-              <button id="ability-overload" class="ability-btn hidden text-[9px] font-extrabold text-white uppercase tracking-wider px-2 py-1 border-[2px] border-black bg-[#ef4444] hover:bg-[#dc2626] block-interactive" title="×3 producción 15s — T° sube 3×">🔥 OVERLOAD</button>
+
+            <!-- ABILITY BAR -->
+            <div id="ability-bar" class="relative z-10 px-4 pb-3 flex gap-2 flex-wrap">
+              <button id="ability-energize" class="ability-btn hidden text-[9px] font-extrabold uppercase tracking-wider px-2.5 py-1.5 border-[3px] border-black bg-[#facc15] hover:bg-[#eab308] b-interactive" title="Próximos 10 clics ×10 + reducen T°">⚡ ENERGIZE</button>
+              <button id="ability-purge" class="ability-btn hidden text-[9px] font-extrabold uppercase tracking-wider px-2.5 py-1.5 border-[3px] border-black bg-[#60a5fa] hover:bg-[#3b82f6] b-interactive" title="Resetea T° — cuesta 10% energía">❄ PURGE</button>
+              <button id="ability-overload" class="ability-btn hidden text-[9px] font-extrabold uppercase tracking-wider px-2.5 py-1.5 border-[3px] border-black bg-[#ef4444] text-white hover:bg-[#dc2626] b-interactive" title="×3 producción 15s — T° sube 3×">🔥 OVERLOAD</button>
             </div>
-            <div class="shrink-0 grid grid-cols-2 gap-2 pt-2 border-t-[3px] border-black mt-2">
+          </div>
+
+          <!-- RIGHT: ENERGY + STATS -->
+          <div class="flex flex-col gap-4">
+
+            <!-- ENERGY DISPLAY -->
+            <div class="bg-[#e8e4dc] border-[5px] border-black b-shadow p-4 flex flex-col items-center justify-center gap-4 hud-corner">
               <div class="text-center">
-                <p class="text-xs font-bold text-[#777777] uppercase tracking-wider">Extracción Manual</p>
-                <p id="click-power-display" class="text-base font-extrabold text-black">1.00 kWh</p>
-              </div>
-              <div class="text-center border-l-[3px] border-black">
-                <p class="text-xs font-bold text-[#777777] uppercase tracking-wider">Subsistemas Activos</p>
-                <p id="buildings-count" class="text-base font-extrabold text-black">0</p>
-              </div>
-            </div>
-          </div>
-          <!-- DIVIDER -->
-          <div class="w-[3px] bg-black shrink-0"></div>
-          <!-- RIGHT: ENERGY DISPLAYS -->
-          <div class="flex-[30] flex flex-col items-center justify-center p-4 min-w-0 gap-4">
-            <div class="flex flex-col items-center gap-1">
-              <div class="text-xs font-bold text-[#777777] uppercase tracking-[0.2em]">Banco de Capacitores</div>
-              <div class="flex items-baseline gap-1.5">
-                <span id="energy-display" class="text-4xl lg:text-5xl font-extrabold tabular-nums text-black leading-none">
-                  0.0
-                </span>
-                <span class="text-sm font-bold text-[#777777] uppercase">kWh</span>
-              </div>
-            </div>
-            <div class="w-full h-[3px] bg-black"></div>
-            <div class="flex flex-col items-center gap-1">
-              <div class="text-xs font-bold text-[#777777] uppercase tracking-[0.2em]">Generación Automática /s</div>
-              <div class="flex items-baseline gap-1.5">
-                <span id="rate-display" class="text-3xl lg:text-4xl font-extrabold text-[#06b6d4] tabular-nums leading-none">
-                  +0.0
-                </span>
-                <span class="text-sm font-bold text-[#06b6d4] uppercase">kW</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- PRESTIGE BAR -->
-        <div class="shrink-0 bg-[#e0ddd6] border-[3px] border-black px-4 py-2 flex items-center justify-between">
-          <div class="flex items-center gap-4">
-            <div class="text-xs font-bold text-[#777777] uppercase tracking-wider">Datos Cósmicos</div>
-            <span id="prestige-data" class="text-sm font-extrabold text-[#06b6d4] tabular-nums">0</span>
-            <div class="text-xs font-bold text-[#777777] uppercase tracking-wider ml-2">Multiplicador</div>
-            <span id="prestige-multiplier" class="text-sm font-extrabold text-[#06b6d4] tabular-nums">×1.00</span>
-            <div class="text-xs font-bold text-[#777777] uppercase tracking-wider ml-2">Doctrina</div>
-            <span id="prestige-doctrine" class="text-sm font-extrabold text-[#f59e0b] tabular-nums">Sin doctrina</span>
-          </div>
-          <div class="flex items-center gap-3">
-            <span id="prestige-gain" class="text-xs font-bold text-[#777777]">+0 al resetear</span>
-            <button
-              id="prestige-btn"
-              class="text-[10px] font-extrabold text-[#444444] uppercase tracking-wider px-3 py-1.5 border-[3px] border-[#a09c94] bg-[#d4d0c8] opacity-50 cursor-not-allowed"
-              disabled
-            >
-              Reset Cósmico
-            </button>
-          </div>
-        </div>
-
-        <!-- ACTIVE UPGRADES BAR -->
-        <div class="shrink-0 bg-[#e0ddd6] border-[3px] border-black px-3 py-1.5">
-          <div class="flex items-center gap-2">
-            <span class="text-[9px] font-bold text-[#777777] uppercase tracking-wider shrink-0">Protocolos Activos</span>
-            <div id="active-upgrades-bar" class="flex items-center gap-1.5 flex-wrap min-h-[20px]">
-              <span class="text-[10px] text-[#a09c94]">Ninguno</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- TELEMETRY ROW -->
-        <div class="shrink-0 bg-[#e0ddd6] border-[3px] border-black grid grid-cols-5 divide-x-[3px] divide-black">
-          <div class="px-2 py-2 text-center">
-            <div class="text-[9px] font-bold text-[#777777] uppercase tracking-wider">T° Núcleo</div>
-            <div id="telemetry-temp" class="text-sm font-extrabold text-black tabular-nums">300 K</div>
-          </div>
-          <div class="px-2 py-2 text-center">
-            <div class="text-[9px] font-bold text-[#777777] uppercase tracking-wider">Eficiencia</div>
-            <div id="telemetry-efficiency" class="text-sm font-extrabold text-black tabular-nums">42%</div>
-          </div>
-          <div class="px-2 py-2 text-center">
-            <div class="text-[9px] font-bold text-[#777777] uppercase tracking-wider">Uptime</div>
-            <div id="telemetry-uptime" class="text-sm font-extrabold text-black tabular-nums">00:00:00</div>
-          </div>
-          <div class="px-2 py-2 text-center">
-            <div class="text-[9px] font-bold text-[#777777] uppercase tracking-wider">Tripulación</div>
-            <div id="telemetry-crew" class="text-sm font-extrabold text-black tabular-nums">5</div>
-          </div>
-          <div class="px-2 py-2 text-center">
-            <div class="text-[9px] font-bold text-[#777777] uppercase tracking-wider">Oxígeno</div>
-            <div id="telemetry-o2" class="text-sm font-extrabold text-[#16a34a] tabular-nums">100%</div>
-          </div>
-        </div>
-
-        <!-- BOTTOM: LOGS + SHOP/UPGRADES -->
-        <div class="flex-1 bg-[#e0ddd6] border-[3px] border-black flex flex-col min-h-0">
-          <div class="flex border-b-[3px] border-black bg-[#d4d0c8] shrink-0">
-            <div class="w-1/3 px-2 py-2 text-xs font-extrabold text-black tracking-wider uppercase border-r-[3px] border-black flex items-center gap-2">
-              <span class="w-1.5 h-1.5 rounded-full bg-[#16a34a]"></span>
-              LOG del Sistema
-            </div>
-            <div class="flex-1 px-2 py-2 text-xs font-extrabold text-black tracking-wider uppercase border-r-[3px] border-black flex items-center gap-2">
-              <span class="w-1.5 h-1.5 rounded-full bg-[#06b6d4]"></span>
-              FABRICAR MÓDULOS
-            </div>
-            <div class="flex-1 px-2 py-2 text-xs font-extrabold text-black tracking-wider uppercase flex items-center gap-2">
-              <span class="w-1.5 h-1.5 rounded-full bg-[#f59e0b]"></span>
-              PROTOCOLOS
-            </div>
-          </div>
-          <div class="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_2fr] min-h-0">
-            <!-- LOGS -->
-            <div class="overflow-y-auto p-2 border-b-[3px] lg:border-b-0 lg:border-r-[3px] border-black">
-              <div id="log-container" class="space-y-1.5"></div>
-            </div>
-            <!-- SHOP + UPGRADES -->
-            <div class="flex-1 grid grid-cols-2 min-h-0">
-              <div class="overflow-y-auto p-2 border-r-[3px] border-black">
-                <div class="flex gap-1 mb-2">
-                  <button id="buy-qty-1" class="flex-1 text-[9px] font-extrabold text-black py-1 border-[2px] border-black bg-white block-interactive">×1</button>
-                  <button id="buy-qty-10" class="flex-1 text-[9px] font-extrabold text-[#777777] py-1 border-[2px] border-[#a09c94] bg-[#e0ddd6] block-interactive">×10</button>
-                  <button id="buy-qty-100" class="flex-1 text-[9px] font-extrabold text-[#777777] py-1 border-[2px] border-[#a09c94] bg-[#e0ddd6] block-interactive">×100</button>
-                  <button id="buy-qty-max" class="flex-1 text-[9px] font-extrabold text-[#777777] py-1 border-[2px] border-[#a09c94] bg-[#e0ddd6] block-interactive">MAX</button>
+                <div class="text-[10px] font-bold text-[#555555] uppercase tracking-[0.25em] mb-1">Banco de Capacitores</div>
+                <div class="flex items-baseline justify-center gap-2">
+                  <span id="energy-display" class="text-4xl md:text-5xl font-extrabold tabular-nums text-black leading-none">0.0</span>
+                  <span class="text-sm font-bold text-[#555555] uppercase">kWh</span>
                 </div>
-                <div id="shop-container" class="space-y-2"></div>
               </div>
-              <div class="overflow-y-auto p-2">
-                <div id="upgrades-container" class="space-y-2"></div>
+              <div class="w-full h-[4px] bg-black"></div>
+              <div class="text-center">
+                <div class="text-[10px] font-bold text-[#555555] uppercase tracking-[0.25em] mb-1">Generación Automática /s</div>
+                <div class="flex items-baseline justify-center gap-2">
+                  <span id="rate-display" class="text-3xl md:text-4xl font-extrabold text-[#00b4d8] tabular-nums leading-none">+0.0</span>
+                  <span class="text-sm font-bold text-[#00b4d8] uppercase">kW</span>
+                </div>
+              </div>
+              <div class="w-full h-[4px] bg-black"></div>
+              <div class="grid grid-cols-2 gap-3 w-full text-center">
+                <div>
+                  <div class="text-[10px] font-bold text-[#555555] uppercase tracking-wider">Extracción Manual</div>
+                  <div id="click-power-display" class="text-lg font-extrabold text-black">1.00 kWh</div>
+                </div>
+                <div class="border-l-[4px] border-black">
+                  <div class="text-[10px] font-bold text-[#555555] uppercase tracking-wider">Subsistemas</div>
+                  <div id="buildings-count" class="text-lg font-extrabold text-black">0</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- PRESTIGE PANEL -->
+            <div class="bg-[#2a2a2a] border-[5px] border-black b-shadow p-4 text-[#e8e4dc] hud-corner">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#8a8a8a]">Datos Cósmicos</span>
+                <span id="prestige-data" class="text-xl font-extrabold text-[#22d3ee] tabular-nums">0</span>
+              </div>
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#8a8a8a]">Multiplicador</span>
+                <span id="prestige-multiplier" class="text-xl font-extrabold text-[#22d3ee] tabular-nums">×1.00</span>
+              </div>
+              <div class="flex items-center justify-between mb-4">
+                <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#8a8a8a]">Doctrina</span>
+                <span id="prestige-doctrine" class="text-sm font-extrabold text-[#facc15] tabular-nums">Sin doctrina</span>
+              </div>
+              <div class="border-t-[3px] border-black pt-3 flex items-center justify-between gap-3">
+                <span id="prestige-gain" class="text-[10px] font-bold text-[#8a8a8a]">Acumula 1M kWh para resetear</span>
+                <button id="prestige-btn" class="text-[10px] font-extrabold uppercase tracking-wider px-3 py-2 border-[3px] border-[#555555] bg-[#3a3a3a] text-[#8a8a8a] opacity-60 cursor-not-allowed" disabled>Reset Cósmico</button>
               </div>
             </div>
           </div>
+        </section>
+
+        <!-- SECTION LABEL -->
+        <div class="flex items-center gap-3">
+          <div class="h-[5px] w-16 bg-black"></div>
+          <span class="text-[10px] font-extrabold text-[#555555] uppercase tracking-[0.3em]">SEC-02 // Telemetría</span>
+          <div class="flex-1 h-[5px] bg-black"></div>
         </div>
 
-      </div>
+        <!-- TELEMETRY STRIP -->
+        <section class="bg-[#e8e4dc] border-[5px] border-black b-shadow grid grid-cols-2 md:grid-cols-5 divide-y-[4px] md:divide-y-0 md:divide-x-[4px] divide-black hud-corner">
+          <div class="px-3 py-3 text-center">
+            <div class="text-[9px] font-bold text-[#555555] uppercase tracking-wider">T° Núcleo</div>
+            <div id="telemetry-temp" class="text-lg font-extrabold text-black tabular-nums">300 K</div>
+          </div>
+          <div class="px-3 py-3 text-center">
+            <div class="text-[9px] font-bold text-[#555555] uppercase tracking-wider">Eficiencia</div>
+            <div id="telemetry-efficiency" class="text-lg font-extrabold text-black tabular-nums">42%</div>
+          </div>
+          <div class="px-3 py-3 text-center">
+            <div class="text-[9px] font-bold text-[#555555] uppercase tracking-wider">Uptime</div>
+            <div id="telemetry-uptime" class="text-lg font-extrabold text-black tabular-nums">00:00:00</div>
+          </div>
+          <div class="px-3 py-3 text-center">
+            <div class="text-[9px] font-bold text-[#555555] uppercase tracking-wider">Tripulación</div>
+            <div id="telemetry-crew" class="text-lg font-extrabold text-black tabular-nums">5</div>
+          </div>
+          <div class="px-3 py-3 text-center">
+            <div class="text-[9px] font-bold text-[#555555] uppercase tracking-wider">Oxígeno</div>
+            <div id="telemetry-o2" class="text-lg font-extrabold text-[#16a34a] tabular-nums">100%</div>
+          </div>
+        </section>
+
+        <!-- ACTIVE UPGRADES -->
+        <section class="bg-[#e8e4dc] border-[5px] border-black b-shadow px-3 py-2 hud-corner">
+          <div class="flex items-center gap-2">
+            <span class="text-[9px] font-bold text-[#555555] uppercase tracking-wider shrink-0">Protocolos Activos</span>
+            <div id="active-upgrades-bar" class="flex items-center gap-1.5 flex-wrap min-h-[24px]">
+              <span class="text-[10px] text-[#8a8a8a]">Ninguno</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION LABEL -->
+        <div class="flex items-center gap-3">
+          <div class="h-[5px] w-16 bg-black"></div>
+          <span class="text-[10px] font-extrabold text-[#555555] uppercase tracking-[0.3em]">SEC-03 // Fabricación</span>
+          <div class="flex-1 h-[5px] bg-black"></div>
+        </div>
+
+        <!-- SHOP + UPGRADES -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+
+          <!-- SHOP -->
+          <div class="bg-[#e8e4dc] border-[5px] border-black b-shadow hud-corner">
+            <div class="panel-header flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="w-2.5 h-2.5 bg-[#00b4d8] border border-black"></div>
+                <span class="text-xs font-extrabold uppercase tracking-wider">Fabricar Módulos</span>
+              </div>
+              <div class="flex gap-1">
+                <button id="buy-qty-1" class="text-[9px] font-extrabold px-2 py-0.5 border-[2px] border-black bg-white b-interactive">×1</button>
+                <button id="buy-qty-10" class="text-[9px] font-extrabold px-2 py-0.5 border-[2px] border-[#8a8a8a] bg-[#e8e4dc] b-interactive">×10</button>
+                <button id="buy-qty-100" class="text-[9px] font-extrabold px-2 py-0.5 border-[2px] border-[#8a8a8a] bg-[#e8e4dc] b-interactive">×100</button>
+                <button id="buy-qty-max" class="text-[9px] font-extrabold px-2 py-0.5 border-[2px] border-[#8a8a8a] bg-[#e8e4dc] b-interactive">MAX</button>
+              </div>
+            </div>
+            <div id="shop-container" class="p-3 space-y-2 max-h-[520px] overflow-y-auto"></div>
+          </div>
+
+          <!-- UPGRADES -->
+          <div class="bg-[#e8e4dc] border-[5px] border-black b-shadow hud-corner">
+            <div class="panel-header flex items-center gap-2">
+              <div class="w-2.5 h-2.5 bg-[#facc15] border border-black"></div>
+              <span class="text-xs font-extrabold uppercase tracking-wider">Protocolos</span>
+            </div>
+            <div id="upgrades-container" class="p-3 space-y-2 max-h-[520px] overflow-y-auto"></div>
+          </div>
+        </section>
+
+        <!-- SECTION LABEL -->
+        <div class="flex items-center gap-3">
+          <div class="h-[5px] w-16 bg-black"></div>
+          <span class="text-[10px] font-extrabold text-[#555555] uppercase tracking-[0.3em]">SEC-04 // Registro</span>
+          <div class="flex-1 h-[5px] bg-black"></div>
+        </div>
+
+        <!-- LOG -->
+        <section class="bg-[#2a2a2a] border-[5px] border-black b-shadow hud-corner">
+          <div class="panel-header bg-[#3a3a3a] flex items-center gap-2">
+            <div class="w-2.5 h-2.5 bg-[#16a34a] border border-black"></div>
+            <span class="text-xs font-extrabold uppercase tracking-wider text-[#e8e4dc]">Log del Sistema</span>
+          </div>
+          <div id="log-container" class="p-3 space-y-1.5 max-h-[200px] overflow-y-auto text-[#e8e4dc]"></div>
+        </section>
+
+        <!-- FOOTER -->
+        <footer class="flex items-center justify-between pt-2 pb-4">
+          <span class="text-[9px] font-bold text-[#555555] uppercase tracking-[0.2em]">SECC-01 // Firmware v2.0 // Brutalist OS</span>
+          <span id="footer-clock" class="text-[9px] font-bold text-[#555555] uppercase tracking-[0.2em] tabular-nums">00:00:00 UTC</span>
+        </footer>
+
+      </main>
     </div>
   `;
 
@@ -288,8 +337,6 @@ function bindEvents() {
   const reactor = document.getElementById("reactor-zone");
   if (reactor) {
     reactor.addEventListener("click", (e) => {
-      // handleReactorClick calcula crit/combo y emite 'energyClicked'
-      // El feedback visual del reactor se dispara vía listener de ese evento
       handleReactorClick(e);
       resetIdleTimer();
       updateHeader();
@@ -297,18 +344,15 @@ function bindEvents() {
     });
   }
 
-  // Feedback visual del reactor basado en crit/intensidad calculados por el clicker
   on('energyClicked', ({ amount, isCrit }) => {
     const intensity = Math.min(2.5, Math.log10(amount + 10) / 3);
     triggerReactorClick({ intensity, isCrit });
   });
 
-  // Combo meter — actualizar barra y texto
   on('comboChanged', ({ comboCount, comboMult }) => {
     updateComboMeter(comboCount, comboMult);
   });
 
-  // Bulk buy quantity selector
   const qtyBtns = {
     1: document.getElementById("buy-qty-1"),
     10: document.getElementById("buy-qty-10"),
@@ -321,10 +365,10 @@ function bindEvents() {
       if (!btn) continue;
       if (key === activeKey) {
         btn.className =
-          "flex-1 text-[9px] font-extrabold text-black py-1 border-[2px] border-black bg-white block-interactive";
+          "text-[9px] font-extrabold px-2 py-0.5 border-[2px] border-black bg-white b-interactive";
       } else {
         btn.className =
-          "flex-1 text-[9px] font-extrabold text-[#777777] py-1 border-[2px] border-[#a09c94] bg-[#e0ddd6] block-interactive";
+          "text-[9px] font-extrabold px-2 py-0.5 border-[2px] border-[#8a8a8a] bg-[#e8e4dc] b-interactive";
       }
     }
   }
@@ -387,7 +431,6 @@ function bindEvents() {
       muteBtn.textContent = muted ? "🔇" : "🔊";
       muteBtn.title = muted ? "Activar sonido" : "Silenciar sonido";
     });
-    // Estado inicial
     muteBtn.textContent = getMuteState() ? "🔇" : "🔊";
     muteBtn.title = getMuteState() ? "Activar sonido" : "Silenciar sonido";
   }
@@ -405,7 +448,6 @@ function bindEvents() {
     });
   }
 
-  // Active ability buttons
   for (const id of ['energize', 'purge', 'overload']) {
     const btn = document.getElementById(`ability-${id}`);
     if (btn) {
@@ -417,7 +459,6 @@ function bindEvents() {
       });
     }
   }
-  // Tick abilities cada 250ms para cooldowns
   setInterval(updateAbilityButtons, 250);
 
   const prestigeBtn = document.getElementById("prestige-btn");
@@ -427,7 +468,6 @@ function bindEvents() {
       const gain = calculatePrestigeGain(state);
       if (gain <= 0) return;
 
-      // Si aún no hay doctrina, forzar elección antes del reset
       if (!state.prestige?.doctrine) {
         showDoctrineSelection(() => runPrestigeConfirmation());
         return;
@@ -469,10 +509,6 @@ function runPrestigeConfirmation() {
   }
 }
 
-/**
- * Muestra un modal neobrutalista para elegir la doctrina de prestigio.
- * `onSelected` se ejecuta tras la elección.
- */
 function showDoctrineSelection(onSelected) {
   if (document.getElementById('doctrine-modal')) return;
 
@@ -480,13 +516,13 @@ function showDoctrineSelection(onSelected) {
   modal.id = 'doctrine-modal';
   modal.className = 'fixed inset-0 z-[10000] flex items-center justify-center bg-black/60';
   modal.innerHTML = `
-    <div class="bg-[#e0ddd6] border-[4px] border-black p-5 max-w-lg w-full shadow-[8px_8px_0_0_#000] mx-3">
-      <h2 class="text-lg font-extrabold text-black font-space mb-2 uppercase tracking-wider">Elige una Doctrina</h2>
+    <div class="bg-[#e8e4dc] border-[5px] border-black p-5 max-w-lg w-full b-shadow mx-3">
+      <h2 class="text-lg font-extrabold text-black font-display mb-2 uppercase tracking-wider">Elige una Doctrina</h2>
       <p class="text-xs text-[#444444] mb-4 leading-relaxed">
         La doctrina define la identidad de tu colonia. Es una elección permanente que seguirá activa en todos tus resets cósmicos.
       </p>
       <div id="doctrine-options" class="grid grid-cols-1 gap-2 mb-4"></div>
-      <button id="doctrine-cancel" class="w-full text-xs font-extrabold text-[#444444] uppercase tracking-wider px-3 py-2 border-[3px] border-[#a09c94] bg-[#d4d0c8] hover:bg-[#c4c0b8] block-interactive">Cancelar</button>
+      <button id="doctrine-cancel" class="w-full text-xs font-extrabold text-[#444444] uppercase tracking-wider px-3 py-2 border-[3px] border-[#8a8a8a] bg-[#d8d4cc] hover:bg-[#c4c0b8] b-interactive">Cancelar</button>
     </div>
   `;
 
@@ -495,7 +531,7 @@ function showDoctrineSelection(onSelected) {
   const options = modal.querySelector('#doctrine-options');
   for (const doctrine of DOCTRINES) {
     const btn = document.createElement('button');
-    btn.className = 'flex items-center gap-3 p-3 border-[3px] border-black bg-[#eae7e0] hover:bg-[#d4d0c8] text-left block-interactive';
+    btn.className = 'flex items-center gap-3 p-3 border-[3px] border-black bg-[#eae7e0] hover:bg-[#d8d4cc] text-left b-interactive';
     btn.innerHTML = `
       <span class="text-2xl">${doctrine.icon}</span>
       <div class="flex-1 min-w-0">
@@ -516,7 +552,6 @@ function showDoctrineSelection(onSelected) {
     modal.remove();
   });
 
-  // Cerrar al hacer clic fuera del panel
   modal.addEventListener('click', (e) => {
     if (e.target === modal) modal.remove();
   });
@@ -568,12 +603,16 @@ function updateBuildingsCount() {
   el.textContent = String(total);
 }
 
-/**
- * Actualiza la fila de telemetría del sistema.
- * Temperatura, eficiencia, uptime, tripulación y oxígeno.
- * Las métricas térmicas fluctúan para simular ruido de sistema real.
- * Detecta sobrecalentamiento del núcleo con histéresis.
- */
+function updateFooterClock() {
+  const el = document.getElementById('footer-clock');
+  if (!el) return;
+  const now = new Date();
+  const h = String(now.getUTCHours()).padStart(2, '0');
+  const m = String(now.getUTCMinutes()).padStart(2, '0');
+  const s = String(now.getUTCSeconds()).padStart(2, '0');
+  el.textContent = `${h}:${m}:${s} UTC`;
+}
+
 function updateTelemetry() {
   const state = getState();
   const rawProduction = calculateRawProduction(state, BUILDINGS_BY_ID);
@@ -583,24 +622,21 @@ function updateTelemetry() {
     0,
   );
 
-  // Ruido térmico: oscilación senoidal suave + micro-ruido aleatorio
   const t = Date.now() / 1000;
   const thermalNoise =
     Math.sin(t * 2.7) * 12 + Math.sin(t * 7.3) * 5 + (Math.random() - 0.5) * 8;
   const effNoise = Math.sin(t * 1.3) * 0.8 + (Math.random() - 0.5) * 0.6;
   const o2Noise = Math.sin(t * 0.5) * 0.4 + (Math.random() - 0.5) * 0.3;
 
-  // Temperatura del núcleo: base coherente con formulas.js + fluctuación
   const tempEl = document.getElementById("telemetry-temp");
   let temp = 300;
   if (tempEl) {
     const baseTemp = calculateCoreTemp(rawProduction, state);
     temp = Math.max(250, baseTemp + thermalNoise);
     tempEl.textContent = `${temp.toFixed(0)} K`;
-    tempEl.className = `text-sm font-extrabold tabular-nums ${temp > 4000 ? "text-[#dc2626]" : temp > 2000 ? "text-[#f59e0b]" : temp > 1000 ? "text-[#d97706]" : "text-black"}`;
+    tempEl.className = `text-lg font-extrabold tabular-nums ${temp > 4000 ? "text-[#ef4444]" : temp > 2000 ? "text-[#f59e0b]" : temp > 1000 ? "text-[#d97706]" : "text-black"}`;
   }
 
-  // Estado de sobrecalentamiento con histéresis
   const overheated = isOverheated(state, rawProduction);
   if (overheated !== state.overheated) {
     updateState({ overheated });
@@ -610,7 +646,6 @@ function updateTelemetry() {
     }
   }
 
-  // Indicador visual del reactor (nuevo componente)
   const heatRatio = (temp - 300) / 4000;
   updateReactorTemperature(heatRatio);
   if (overheated) {
@@ -621,19 +656,15 @@ function updateTelemetry() {
     updateReactorLEDs("stable");
   }
 
-  // Panel principal: borde rojo cuando está sobrecalentado
-  const mainPanel = document.getElementById("main-panel");
-  if (mainPanel) {
+  const reactorZone = document.getElementById("reactor-zone");
+  if (reactorZone) {
     if (overheated) {
-      mainPanel.classList.add("border-[#dc2626]");
-      mainPanel.classList.remove("border-black");
+      reactorZone.style.borderColor = "#ef4444";
     } else {
-      mainPanel.classList.add("border-black");
-      mainPanel.classList.remove("border-[#dc2626]");
+      reactorZone.style.borderColor = "#0f0f0f";
     }
   }
 
-  // Eficiencia: 42% base + mejora con edificios y upgrades + fluctuación
   const effEl = document.getElementById("telemetry-efficiency");
   if (effEl) {
     const baseEff = 42;
@@ -643,10 +674,9 @@ function updateTelemetry() {
     );
     const eff = Math.max(20, Math.min(97, baseEff + bonus + effNoise));
     effEl.textContent = `${eff.toFixed(1)}%`;
-    effEl.className = `text-sm font-extrabold tabular-nums ${eff > 85 ? "text-[#16a34a]" : eff > 60 ? "text-black" : "text-[#dc2626]"}`;
+    effEl.className = `text-lg font-extrabold tabular-nums ${eff > 85 ? "text-[#16a34a]" : eff > 60 ? "text-black" : "text-[#ef4444]"}`;
   }
 
-  // Uptime: tiempo desde gameStartedAt
   const upEl = document.getElementById("telemetry-uptime");
   if (upEl) {
     const elapsed = Math.floor(
@@ -658,26 +688,21 @@ function updateTelemetry() {
     upEl.textContent = `${h}:${m}:${s}`;
   }
 
-  // Tripulación: base 5 + 1 por cada 10 edificios (estática, no fluctúa)
   const crewEl = document.getElementById("telemetry-crew");
   if (crewEl) {
     const crew = 5 + Math.floor(buildingsCount / 10);
     crewEl.textContent = String(crew);
   }
 
-  // Oxígeno: 100% - degradación por edificios + fluctuación
   const o2El = document.getElementById("telemetry-o2");
   if (o2El) {
     const baseO2 = Math.max(15, 100 - buildingsCount * 0.3);
     const o2 = Math.max(14, Math.min(100, baseO2 + o2Noise));
     o2El.textContent = `${o2.toFixed(1)}%`;
-    o2El.className = `text-sm font-extrabold tabular-nums ${o2 > 60 ? "text-[#16a34a]" : o2 > 30 ? "text-[#f59e0b]" : "text-[#dc2626]"}`;
+    o2El.className = `text-lg font-extrabold tabular-nums ${o2 > 60 ? "text-[#16a34a]" : o2 > 30 ? "text-[#f59e0b]" : "text-[#ef4444]"}`;
   }
 }
 
-/**
- * Actualiza la barra de Prestigio (Datos Cósmicos, multiplicador, botón).
- */
 function updatePrestigeDisplay() {
   const state = getState();
   const gain = calculatePrestigeGain(state);
@@ -707,11 +732,11 @@ function updatePrestigeDisplay() {
     if (gain > 0) {
       btn.disabled = false;
       btn.className =
-        "text-[10px] font-extrabold text-black uppercase tracking-wider px-3 py-1.5 border-[3px] border-black bg-[#06b6d4] hover:bg-[#0891b2] block-interactive";
+        "text-[10px] font-extrabold uppercase tracking-wider px-3 py-2 border-[3px] border-black bg-[#00b4d8] hover:bg-[#0891b2] text-black b-interactive";
     } else {
       btn.disabled = true;
       btn.className =
-        "text-[10px] font-extrabold text-[#444444] uppercase tracking-wider px-3 py-1.5 border-[3px] border-[#a09c94] bg-[#d4d0c8] opacity-50 cursor-not-allowed";
+        "text-[10px] font-extrabold uppercase tracking-wider px-3 py-2 border-[3px] border-[#555555] bg-[#3a3a3a] text-[#8a8a8a] opacity-60 cursor-not-allowed";
     }
   }
 }
@@ -724,8 +749,8 @@ function getActiveUpgradeTooltip() {
     activeUpgradeTooltip.className =
       "fixed z-[9999] hidden pointer-events-none";
     activeUpgradeTooltip.style.cssText = `
-      background: #111111;
-      border: 3px solid #06b6d4;
+      background: #0f0f0f;
+      border: 3px solid #00b4d8;
       color: #ffffff;
       padding: 6px 10px;
       font-family: 'JetBrains Mono', monospace;
@@ -733,7 +758,7 @@ function getActiveUpgradeTooltip() {
       font-weight: bold;
       line-height: 1.4;
       max-width: 240px;
-      box-shadow: 4px 4px 0 0 #06b6d4;
+      box-shadow: 4px 4px 0 0 #00b4d8;
       white-space: normal;
       word-break: break-word;
     `;
@@ -742,10 +767,6 @@ function getActiveUpgradeTooltip() {
   return activeUpgradeTooltip;
 }
 
-/**
- * Renderiza chips visuales de las mejoras/protocolos activos.
- * Cada chip tiene un tooltip neobrutalista flotante con su descripción.
- */
 function updateActiveUpgradesBar() {
   const container = document.getElementById("active-upgrades-bar");
   if (!container) return;
@@ -755,7 +776,7 @@ function updateActiveUpgradesBar() {
 
   if (active.length === 0) {
     container.innerHTML =
-      '<span class="text-[10px] text-[#a09c94]">Ninguno</span>';
+      '<span class="text-[10px] text-[#8a8a8a]">Ninguno</span>';
     return;
   }
 
@@ -769,7 +790,7 @@ function updateActiveUpgradesBar() {
 
     const chip = document.createElement("span");
     chip.className =
-      "text-[9px] font-bold text-black px-1.5 py-0.5 border-[2px] border-black bg-[#06b6d4] whitespace-nowrap";
+      "text-[9px] font-bold text-black px-1.5 py-0.5 border-[2px] border-black bg-[#00b4d8] whitespace-nowrap";
     chip.textContent = upgrade.name;
 
     chip.addEventListener("mouseenter", (e) => {
@@ -809,9 +830,6 @@ function positionTooltip(e, tooltip) {
   tooltip.style.top = `${top}px`;
 }
 
-/**
- * Actualiza la barra de combo del reactor.
- */
 function updateComboMeter(comboCount, comboMult) {
   const meter = document.getElementById('combo-meter');
   if (!meter) return;
@@ -836,14 +854,11 @@ function updateComboMeter(comboCount, comboMult) {
     } else if (comboCount > cap * 0.4) {
       text.className = 'text-[10px] font-extrabold text-[#facc15] tabular-nums shrink-0 w-16 text-right';
     } else {
-      text.className = 'text-[10px] font-extrabold text-[#06b6d4] tabular-nums shrink-0 w-16 text-right';
+      text.className = 'text-[10px] font-extrabold text-[#00b4d8] tabular-nums shrink-0 w-16 text-right';
     }
   }
 }
 
-/**
- * Actualiza los botones de habilidades activas: visibilidad, cooldown overlay, estado activo.
- */
 function updateAbilityButtons() {
   const state = getState();
   for (const id of ['energize', 'purge', 'overload']) {
@@ -871,7 +886,6 @@ function updateAbilityButtons() {
       btn.textContent = `${glyphFor(id)} ${secs.toFixed(0)}s`;
     }
 
-    // Estado activo: ENERGIZE con cargas, OVERLOAD durante duración
     if (id === 'energize') {
       const charges = state.abilities?.energize?.charges ?? 0;
       if (charges > 0) {

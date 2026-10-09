@@ -37,10 +37,10 @@ function createPopup(milestone) {
   if (!container) return;
 
   const popup = document.createElement('div');
-  popup.className = 'pointer-events-auto p-6 border-[3px] bg-[#f7f5f0] block-interactive';
+  popup.className = 'pointer-events-auto p-5 border-[4px] bg-[#e8e4dc] b-interactive';
   popup.style.borderColor = '#0f0f0f';
-  popup.style.borderLeft = '6px solid #06b6d4';
-  popup.style.boxShadow = '6px 6px 0 0 #0f0f0f';
+  popup.style.borderLeft = '6px solid #00b4d8';
+  popup.style.boxShadow = '8px 8px 0 0 #0f0f0f';
 
   const title = document.createElement('div');
   title.className = 'text-sm font-extrabold text-[#0f0f0f] uppercase tracking-wider';

@@ -81,7 +81,7 @@ export function refreshShopAffordability() {
 
     const qtyLabel = buyQuantity === -1 ? (qty > 1 ? `×${qty} ` : '') : `×${qty} `;
     refs.costEl.textContent = `${qtyLabel}${formatNumber(cost, 0)} kWh`;
-    refs.costEl.className = `text-sm font-extrabold ${canAfford ? 'text-[#06b6d4]' : 'text-[#dc2626]'}`;
+    refs.costEl.className = `text-sm font-extrabold ${canAfford ? 'text-[#00b4d8]' : 'text-[#ef4444]'}`;
     refs.countEl.textContent = String(owned);
     if (refs.masteryEl) updateMasteryBadge(refs.masteryEl, owned, building.tierColor);
     if (building.isAutoClicker) {
@@ -324,11 +324,11 @@ function calculateMaxBuy(baseCost, owned, energy) {
 }
 
 function getCardClasses(canAfford) {
-  const base = 'flex items-start gap-3 p-3 border-[3px] bg-[#eae7e0] block-interactive';
+  const base = 'flex items-start gap-3 p-3 border-[3px] bg-[#e8e4dc] b-interactive';
   if (canAfford) {
-    return `${base} border-[#0f0f0f] border-l-[5px] border-l-[#06b6d4] cursor-pointer`;
+    return `${base} border-[#0f0f0f] border-l-[6px] cursor-pointer`;
   }
-  return `${base} border-[#a09c94] opacity-50 cursor-not-allowed`;
+  return `${base} border-[#8a8a8a] opacity-50 cursor-not-allowed`;
 }
 
 function createLockedCard(building, progress) {
